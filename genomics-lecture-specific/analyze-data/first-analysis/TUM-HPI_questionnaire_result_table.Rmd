@@ -1,0 +1,62 @@
+---
+title: "TUM/HPI Questionnaire Result Table"
+output:
+  pdf_document:
+    keep_tex: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r prepare, include=FALSE}
+forceStratificationOutput <- FALSE
+```
+
+```{r compute-stratification-results, include=FALSE}
+source("genomics-lecture-specific/analyze-data/first-analysis/scripts/stratify.R")
+if (!file.exists(file.path(getResultDirectory(), "stratification_stats.csv")) | forceStratificationOutput) {
+  computeStratificationResults()
+}
+```
+
+Table \ref{tab:results} lists all results of the HPI and TUM questionnaires.
+
+\renewcommand{\arraystretch}{1.5}
+
+```{r prepare-results-table, include=FALSE}
+library(stringr)
+source("genomics-lecture-specific/analyze-data/first-analysis/scripts/stratify.R")
+source("assets/stratification/table.R")
+comparisonSpecification <- getComparisonSpecification()
+hpiData <- getUniData("HPI", comparisonSpecification)
+tumData <- getUniData("TUM", comparisonSpecification)
+stats <- read.csv(file.path(getResultDirectory(), "stratification_stats.csv"))
+uniComparisonStats <- stats[stats$stratification == "by_uni",]
+allBaseQuestionIds <- c("Q403", "T207", "T201", "Q405", "Q417", "Q418", "Q407",
+                        "Q408", "Q409", "Q410", "T203", "Q411", "Q419", "Q412",
+                        "Q420", "Q413", "Q414", "Q415", "Q421")
+data <- getTableData(allBaseQuestionIds, uniComparisonStats, hpiData, tumData, latex = TRUE)
+```
+
+```{r results, echo=FALSE, results='asis', include=TRUE}
+# Will create LaTeX code to include in paper
+
+# Post-editing:
+# Set caption width in LaTeX with \captionsetup{width=\textwidth} (requires caption package)
+# Change repeated caption to \caption*{\autoref{tab:results} \textit{(continued)}}
+# In question "Did you conduct any analyses with your data beyond the course?" add HPI results:
+# {Yes: 4* \newline No: 2*} (all who selected a analysis option only conducted one analysis)
+# In footnote, change l to p{0.95\textwidth} in LaTeX footer definition for line breaks
+
+knitr::kable(data, row.names = FALSE, booktabs = TRUE, longtable = TRUE, escape = FALSE,
+             col.names = colnames(data),
+             format = "latex",
+             caption = "All questionnaire results but questions regarding the motivation to participate in the course. \\newline WT = winter term, ST = summer term.") %>%
+  kableExtra::kable_styling(latex_options = c("hold_position", "repeat_header")) %>%
+  kableExtra::column_spec(1, width = "4.5cm") %>%
+  kableExtra::column_spec(2:3, width = "4cm") %>%
+  kableExtra::column_spec(4, width = "2cm") %>%
+  kableExtra::footnote(symbol_manual = c("*"), symbol = c("To be able to compare HPI and TUM results for this question, the response of an HPI participant is treated as ``Yes\" if at least one analysis was selected."))
+```
+

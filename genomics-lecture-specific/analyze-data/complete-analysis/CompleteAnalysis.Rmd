@@ -1,0 +1,1496 @@
+---
+title: "Complete Questionnaire Analysis"
+output: "pdf_document"
+editor_options: 
+  chunk_output_type: console
+---
+
+The underlying markdown file of this document conducts all analyses that are reported in the paper (and more).
+
+First, it combines the different questionnaire versions in one large collection (also see `data/AllData` and `data/AllData/combination_confi.json`).
+
+Afterwards, different analyzes are conducted and results produced. Intermediate results and further results that are not shown in this document are stored in `results/AllData`.
+
+```{r helpers, include=FALSE}
+library(tidyverse)
+library(rjson)
+
+getCompleteDataPath <- function() {
+  source("modules/dataPath.R", local = TRUE)
+  dataPath <- getDataPath()
+  completeDataPath <- "data/AllData"
+  if (dataPath != completeDataPath) {
+    stop("[ERROR] Set data path to 'data/AllData'")
+  }
+  if (!dir.exists(completeDataPath)) {
+    stop("[ERROR] Expecting 'data/AllData' to be present (with combination config)")
+  }
+  return(completeDataPath)
+}
+getCompleteResultPath <- function() {
+  source("assets/stratification/utils.R", local = TRUE)
+  return(getResultDirectory())
+}
+
+IS_LATEX <- TRUE
+
+COMPLETE_DATA_DIRECTORY <- getCompleteDataPath()
+COMPLETE_RESULTS_DIRECTORY <- getCompleteResultPath()
+HPI_NAME <- "HPI"
+TUM_NAME <- "TUM"
+HPI_FIRST_YEAR <- "SoSe 2020"
+HPI_SECOND_YEAR <- "SoSe 2021"
+TUM_COMPLETE_YEAR <- "WiSe 2020/21"
+
+runIfNotPresent <- function(runFunction, outputPath, runParameters = NA, forceRun = FALSE, readOutput = NA) {
+  if (!file.exists(outputPath) | forceRun) {
+    if (file.exists(outputPath) & forceRun) {
+      print(paste0("[INFO] Forcing execution of ", substitute(runFunction), " (overwriting ", outputPath, ")"))
+    }
+    if (is.na(runParameters)) {
+      return(runFunction())
+    } else {
+      return(runFunction(runParameters))
+    }
+  } else {
+    print(paste0("[INFO] Skipping execution of ", substitute(runFunction), " (", outputPath, " is present)"))
+    if (typeof(readOutput) == "closure") {
+      return(readOutput(outputPath))
+    }
+  }
+}
+```
+
+```{r view-helpers, include=FALSE}
+
+cleanInput <- function(text) {
+  cleanText <- text
+  cleanText <- str_replace_all(cleanText, " ", " ")
+  cleanText <- str_replace_all(cleanText, "​", " ")
+  return(cleanText)
+}
+renderTable <- function(data) {
+  if (IS_LATEX) {
+    for (rowIndex in 1:nrow(data)) {
+      for (colIndex in 1:ncol(data)) {
+        cellValue <- data[rowIndex, colIndex]
+        if (typeof(cellValue) == "character") {
+          data[rowIndex, colIndex] <- cleanInput(cellValue)
+        }
+      }
+    }
+  }
+  knitr::kable(data, row.names = FALSE, booktabs = TRUE, latex = IS_LATEX)
+}
+output_print <- function(text) {
+  print(cleanInput(text))
+}
+```
+
+```{r combine-data, include=FALSE}
+# Combine all questionnaires
+# Config for combination present in COMPLETE_DATA_DIRECTORY
+combineCompleteResultData <- function() {
+  source("assets/combineResultData.R", local = TRUE)
+
+  # Definition of different questionnaire locations and versions
+  initial_version_directories <- c(
+    "data/AYPG/HPI_Q1-Q3", # long version
+    "data/AYPG/HPI_Q4", # old short version
+    "data/TUM_Retrospective", # old short version
+    "data/TUM_Q1-Q4/TUM_Q1", # old short version
+    "data/TUM_Q1-Q4/TUM_Q2", # old short version
+    "data/TUM_Q1-Q4/TUM_Q3" # old short version
+  )
+  conflicting_version_directories <- c(
+    "data/TUM_Q1-Q4/TUM_Q4", # new short version
+    "data/UYG" # new short version
+  )
+
+  # Definition of output directories
+  initial_versions_directory = file.path(COMPLETE_DATA_DIRECTORY, "InititalVersions")
+  conflicting_versions_directory = file.path(COMPLETE_DATA_DIRECTORY, "NewVersions")
+
+  # First combine compatible questionnaires (to be better able to compare afterwards)
+  if (!dir.exists(initial_versions_directory)) {
+    combineResultData(initial_version_directories, initial_versions_directory, outputPostfix = "_old_versions_combined")
+  }
+  if (!dir.exists(conflicting_versions_directory)) {
+    combineResultData(conflicting_version_directories, conflicting_versions_directory, outputPostfix = "_new_versions_combined")
+  }
+  
+  # Combine all data (see config in COMPLETE_DATA_DIRECTORY for merge settings)
+  combineResultData(c(initial_versions_directory, conflicting_versions_directory), COMPLETE_DATA_DIRECTORY, outputPostfix = "_combined")
+  
+  # Add helper fields
+  results <- loadData(COMPLETE_DATA_DIRECTORY, DATA_PREFIX)
+  options <- loadData(COMPLETE_DATA_DIRECTORY, VALUES_PREFIX)
+
+  UNI <- c()
+  COURSE_YEAR <- c()
+  CLEAN_QUESTNNR <- c()
+  for (rowIndex in 1:nrow(results)) {
+    row <- results[rowIndex,]
+    questionnaire <- row$QUESTNNR
+    # Get UNI
+    if (str_detect(questionnaire, fixed(TUM_NAME))) {
+      UNI <- c(UNI, TUM_NAME)
+    } else {
+      UNI <- c(UNI, HPI_NAME)
+    }
+    # Get CLEAN_QUESTNNR
+    if (!str_detect(questionnaire, fixed("_"))) {
+      CLEAN_QUESTNNR <- c(CLEAN_QUESTNNR, questionnaire)
+    } else if (questionnaire == "TUM_Retrospective") {
+      CLEAN_QUESTNNR <- c(CLEAN_QUESTNNR, "Q4")
+    } else { # questionnaire name with uni name and underscore
+      CLEAN_QUESTNNR <- c(CLEAN_QUESTNNR,
+                          str_remove(str_remove(str_remove(questionnaire, TUM_NAME), HPI_NAME), "_"))
+    }
+    # Get COURSE_YEAR
+    if (questionnaire == "TUM_Retrospective") {
+      if (is.na(row$T201)) {
+        COURSE_YEAR <- c(COURSE_YEAR, NA)
+      }
+      COURSE_YEAR <- c(COURSE_YEAR, options[which(options$VAR == "T201" & options$RESPONSE == row$T201),]$MEANING)
+    } else if (!str_detect(questionnaire, fixed("_")) | str_detect(questionnaire, fixed(HPI_NAME))) {
+      COURSE_YEAR <- c(COURSE_YEAR, paste("SoSe", substr(row$STARTED, 1, 4)))
+    } else if (str_detect(questionnaire, fixed(TUM_NAME))) {
+      COURSE_YEAR <- c(COURSE_YEAR, TUM_COMPLETE_YEAR)
+    } else {
+      print(paste("WARNING: Unhandled COURSE_YEAR case for", questionnaire))
+      COURSE_YEAR <- c(COURSE_YEAR, "NOT HANDLED")
+    }
+  }
+  results$UNI <- UNI
+  results$COURSE_YEAR <- COURSE_YEAR
+  results$CLEAN_QUESTNNR <- CLEAN_QUESTNNR
+  writeTable(results, COMPLETE_DATA_DIRECTORY, paste0(DATA_PREFIX, "_combined"))
+  
+  # Check questions that should maybe be normalized
+  questions <- loadData(COMPLETE_DATA_DIRECTORY, VARIABLES_PREFIX)
+  
+  getPatternRegex <- function(prefixes) {
+    return(paste0("^(", paste(prefixes, collapse = "|"), ")"))
+  }
+
+  relevant_question_prefixes <- c("T1", "T2", "Q1", "Q2", "Q3", "Q4", "old_", "QX")
+  already_normalized <- names(getCombinationConfig(COMPLETE_DATA_DIRECTORY)[["normalizeQuestionIds"]])
+  not_normalized <- c("T201", "T203", "T207", "Q302", "QX09")
+
+  check_normalization <- questions[which(
+    str_detect(questions$VAR, getPatternRegex(relevant_question_prefixes)) &
+    !str_detect(questions$VAR, getPatternRegex(already_normalized)) &
+    !str_detect(questions$VAR, getPatternRegex(not_normalized))),]
+}
+runIfNotPresent(combineCompleteResultData,
+                file.path(COMPLETE_DATA_DIRECTORY, "data_combined.csv"),
+                forceRun = FALSE)
+```
+
+```{r analysis-helpers, include=FALSE}
+getCompleteResultData <- function() {
+  source("modules/data/load.R", local = TRUE)
+  source("genomics-lecture-specific/analyze-data/cleanResults.R", local = TRUE)
+  return(cleanGenotypingDependencies(
+            removeTumRetrospectiveFutureAnalysesWithoutPassword(
+              withConsent(getResultData()))))
+}
+
+getCompleteQuestions <- function() {
+  source("modules/data/questions.R", local = TRUE)
+  return(getQuestions())
+}
+
+getCompleteOptions <- function () {
+  source("modules/data/load.R", local = TRUE)
+  return(getOptionData())
+}
+
+COMPLETE_RESULTS <- getCompleteResultData()
+COMPLETE_QUESTIONS <- getCompleteQuestions()
+COMPLETE_OPTIONS <- getCompleteOptions()
+
+getResultsForQuestions <- function(questionIds) {
+  metaColumns <- c("CLEAN_QUESTNNR", "UNI", "COURSE_YEAR")
+  results <- COMPLETE_RESULTS[,c(metaColumns, questionIds)]
+  for (rowIndex in 1:nrow(results)) {
+    for (questionId in questionIds) {
+      response <- results[rowIndex, questionId]
+      if (!is.na(response)) {
+        responseMeaning <- COMPLETE_OPTIONS[which(COMPLETE_OPTIONS$VAR == questionId & COMPLETE_OPTIONS$RESPONSE == response), "MEANING"]
+        results[rowIndex, questionId] <- responseMeaning
+      }
+    }
+  }
+  return(results)
+}
+
+replaceQuestionIdsWithText <- function(data, questionIds) {
+  columnNames <- c()
+  for (column in colnames(data)) {
+    columnName <- column
+    if (column %in% questionIds) {
+      columnName <- COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$id == column), "text"]
+    }
+    columnNames <- c(columnNames, columnName)
+  }
+  colnames(data) <- columnNames
+  return(data)
+}
+
+getCommonQuestions <- function(resultList) {
+  source("modules/data/load.R", local = TRUE)
+  source("modules/data/questions.R", local = TRUE)
+  notInterestingForAnalysis <- c("QX02")
+  possibleCommonIds <- unique(unlist(lapply(resultList, getQuestionIds)))
+  commonIds <- c()
+  notAllEmpty <- function(results, questionId) {
+    return(!all(is.na(results[possibleCommonId]) | results[possibleCommonId] == ""))
+  }
+  for (possibleCommonId in possibleCommonIds) {
+    if (possibleCommonId %in% notInterestingForAnalysis) {
+      next
+    }
+    if (all(unlist(lapply(resultList, notAllEmpty, possibleCommonId)))) {
+      commonIds <- c(commonIds, possibleCommonId)
+    }
+  }
+  return(commonIds)
+}
+
+getComparisonSpecification <- function() {
+  hpiResults <- COMPLETE_RESULTS[which(COMPLETE_RESULTS$UNI == HPI_NAME & COMPLETE_RESULTS$CLEAN_QUESTNNR == "Q4"),]
+  tumResults <- COMPLETE_RESULTS[which(COMPLETE_RESULTS$UNI == TUM_NAME & COMPLETE_RESULTS$CLEAN_QUESTNNR == "Q4"),]
+  hpiFirstYearResults <- hpiResults[which(hpiResults$COURSE_YEAR == HPI_FIRST_YEAR),]
+  hpiSecondYearResults <- hpiResults[which(hpiResults$COURSE_YEAR == HPI_SECOND_YEAR),]
+  tumRetroResults <- tumResults[which(tumResults$QUESTNNR == "TUM_Retrospective"),]
+  tumQ4Results <- tumResults[which(tumResults$COURSE_YEAR == "SoSe 2020/21"),]
+
+  comparisonSpecification <- list(
+    "by_uni" = list(
+      "populations" = list(
+        "HPI" = hpiResults,
+        "TUM" = tumResults
+      ),
+      "questions" = getCommonQuestions(list(hpiResults, tumResults))
+    ),
+    "hpi_by_year" = list(
+      "populations" = list (
+        "SoSe 2020" = hpiFirstYearResults,
+        "SoSe 2021" = hpiSecondYearResults
+      ),
+      "questions" = getCommonQuestions(list(hpiFirstYearResults, hpiSecondYearResults))
+    ),
+    "tum_retro_vs_q4" = list(
+      "populations" = list(
+        "TUM Retro" = tumRetroResults,
+        "TUM Q4" = tumQ4Results
+      ),
+      "questions" = getCommonQuestions(list(tumRetroResults, tumQ4Results))
+    )
+  )
+  return(comparisonSpecification)
+}
+
+getIncludedQuestionnaires <- function(results) {
+  includedQuestionnaires <- unique(results[,c("UNI", "COURSE_YEAR", "CLEAN_QUESTNNR")])
+  participantNumbers <- c()
+  for (rowIndex in 1:nrow(includedQuestionnaires)) {
+    uni <- includedQuestionnaires[rowIndex,]$UNI
+    courseYear <- includedQuestionnaires[rowIndex,]$COURSE_YEAR
+    cleanQuestionnaire <- includedQuestionnaires[rowIndex,]$CLEAN_QUESTNNR
+    participantNumbers <- c(participantNumbers, length(which(
+      results$UNI == uni &
+      results$COURSE_YEAR == courseYear &
+      results$CLEAN_QUESTNNR == cleanQuestionnaire)))
+  }
+  includedQuestionnaires$PARTICIPANTS <- participantNumbers
+  return(includedQuestionnaires)
+}
+```
+
+```{r get-retrospective-stats, include=FALSE}
+
+RETROSPECTIVE_STATS_NAME <- "retrospective_stats"
+RETROSPECTIVE_STATS_DIRECTORY <- "retrospective-stats"
+RETROSPECTIVE_STATS_PATH <- file.path(COMPLETE_RESULTS_DIRECTORY,
+                                      RETROSPECTIVE_STATS_DIRECTORY,
+                                      paste0(RETROSPECTIVE_STATS_NAME, ".csv"))
+getRetrospectiveStats <- function() {
+  source("assets/stratification/utils.R", local = TRUE)
+  comparisonSpecification <- getComparisonSpecification()
+  retrospectiveStats <- runComparisons(comparisonSpecification,
+                                             combinedOutputFileName = RETROSPECTIVE_STATS_NAME,
+                                             combinedOutputDirectory = RETROSPECTIVE_STATS_DIRECTORY)
+}
+
+RETROSPECTIVE_STATS <- runIfNotPresent(getRetrospectiveStats, RETROSPECTIVE_STATS_PATH, forceRun = FALSE, readOutput = read.csv)
+```
+
+## Motivation stats
+
+The following table shows students' answers regarding their motivation to participate in the course from the short version retrospective questionnaires (HPI 2020 Q4, TUM Q4', HPI 2021 Q1, and TUM 2020/21 Q1).
+
+```{r motivation-analysis-helpers, include=FALSE}
+OLD_MOTIVATION_RESULT_IDS <- COMPLETE_QUESTIONS$id[which(
+  startsWith(COMPLETE_QUESTIONS$id, "MN02") |
+  startsWith(COMPLETE_QUESTIONS$id, "ES02"))]
+NEW_MOTIVATION_RESULT_IDS <- COMPLETE_QUESTIONS$id[which(startsWith(COMPLETE_QUESTIONS$id, "Q102"))]
+
+getMotivationResults <- function(results, motivationQuestionIds) {
+  motivationResultRows <- c()
+  for (rowIndex in 1:nrow(results)) {
+    resultRow <- results[rowIndex,]
+    motivationResults <- resultRow[,motivationQuestionIds]
+    if (!all(is.na(motivationResults))) {
+      motivationResultRows <- c(motivationResultRows, rowIndex)
+    }
+  }
+  motivationResultColumns <- c("UNI", "COURSE_YEAR", "CLEAN_QUESTNNR", "SERIAL", OLD_MOTIVATION_RESULT_IDS, NEW_MOTIVATION_RESULT_IDS)
+  motivationResults <- results[motivationResultRows, motivationResultColumns]
+  return(motivationResults)
+}
+```
+
+```{r get-motivation-stats, include=FALSE}
+
+MOTIVATON_STATS_NAME <- "motivation_stats"
+MOTIVATON_STATS_DIRECTORY <- "motivation-stats"
+MOTIVATON_STATS_PATH <- file.path(COMPLETE_RESULTS_DIRECTORY,
+                                      MOTIVATON_STATS_DIRECTORY,
+                                      paste0(MOTIVATON_STATS_NAME, ".csv"))
+getMotivationStats <- function() {
+  source("assets/stratification/utils.R", local = TRUE)
+  newMotivationResults <- getMotivationResults(COMPLETE_RESULTS, NEW_MOTIVATION_RESULT_IDS)
+  includedQuestionnaires <- getIncludedQuestionnaires(newMotivationResults)
+  comparisonSpecification <- list(
+    "by_uni" = list(
+      "populations" = list(
+        "HPI" = newMotivationResults[which(newMotivationResults$UNI == HPI_NAME),],
+        "TUM" = newMotivationResults[which(newMotivationResults$UNI == TUM_NAME),]
+      ),
+      "questions" = NEW_MOTIVATION_RESULT_IDS
+    )
+  )
+  comparisonSpecification[["by_questionnaire"]] <- list("questions" = NEW_MOTIVATION_RESULT_IDS)
+  populations <- list()
+  for (rowIndex in 1:nrow(includedQuestionnaires)) {
+    questionnaire <- includedQuestionnaires[rowIndex,]
+    uni <- questionnaire$UNI
+    courseYear <- questionnaire$COURSE_YEAR
+    questionnaireName <- questionnaire$CLEAN_QUESTNNR
+    populationResults <- newMotivationResults[which(
+      newMotivationResults$UNI == uni &
+      newMotivationResults$COURSE_YEAR == courseYear &
+      newMotivationResults$CLEAN_QUESTNNR == questionnaireName),]
+    if (nrow(populationResults) > 0) {
+      populationName <- paste(questionnaireName, uni, courseYear, sep = " - ")
+      populations[[populationName]] <- populationResults
+    }
+  }
+  comparisonSpecification[["by_questionnaire"]][["populations"]] <- populations
+  motivation_stats <- runComparisons(comparisonSpecification, combinedOutputFileName = MOTIVATON_STATS_NAME,
+                                     combinedOutputDirectory = MOTIVATON_STATS_DIRECTORY)
+
+  ## Manually analyze the differences between long Q1 and short Q4 motivations
+  oldMotivationResults <- getMotivationResults(COMPLETE_RESULTS, OLD_MOTIVATION_RESULT_IDS)
+  oldMotivationQuestions <- COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$id %in% OLD_MOTIVATION_RESULT_IDS),]
+  newMotivationQuestions <- COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$id %in% NEW_MOTIVATION_RESULT_IDS),]
+  redundantMotivationQuestions <- rbind(oldMotivationQuestions, newMotivationQuestions)
+  redundantMotivationResults <- rbind(
+    oldMotivationResults,
+    newMotivationResults[which(
+      newMotivationResults$UNI == HPI_NAME &
+      newMotivationResults$COURSE_YEAR == HPI_FIRST_YEAR),])
+  id <- c()
+  topic <- c()
+  responses <- c()
+  for (rowIndex in 1:nrow(redundantMotivationQuestions)) {
+    question <- redundantMotivationQuestions[rowIndex,]
+    if (question$id == "Q102") {
+      next
+    }
+    id <- c(id, question$id)
+    topic <- c(topic, paste(question$page, question$option))
+    questionResponses <- c()
+    for (responseValue in sort(unique(redundantMotivationResults[, question$id]), decreasing = TRUE)) {
+      responseMeaning <- COMPLETE_OPTIONS$MEANING[which(
+        COMPLETE_OPTIONS$VAR == question$id & COMPLETE_OPTIONS$RESPONSE == responseValue)]
+      responseCount <- length(which(redundantMotivationResults[, question$id] == responseValue))
+      questionResponse <- paste0(responseMeaning, ": ", responseCount)
+      questionResponses <- c(questionResponses, questionResponse)
+    }
+    responses <- c(responses, paste(questionResponses, collapse = "\n"))
+  }
+  collectedRedundantResults <- data.frame(id, topic, responses)
+  redundantMotivationResultsPath <- file.path(getResultDirectory(MOTIVATON_STATS_DIRECTORY), "redundant_motivation_results.csv")
+  write.csv(collectedRedundantResults, redundantMotivationResultsPath, row.names = FALSE)
+  
+  return(motivation_stats)
+}
+
+MOTIVATION_STATS <- runIfNotPresent(getMotivationStats, MOTIVATON_STATS_PATH, forceRun = FALSE, readOutput = read.csv)
+```
+
+```{r motivation-table, echo=FALSE, results='asis', include=TRUE}
+getCleanMotivationStats <- function(motivation_stats) {
+  for (rowIndex in 1:nrow(motivation_stats)) {
+  longQuestionText <- motivation_stats[rowIndex, "question.text"]
+  shortQuestionText <- stringr::str_remove(longQuestionText, stringr::fixed("What motivated you to participate in the course?​ Option: "))
+  motivation_stats[rowIndex, "question.text"] <- shortQuestionText
+  }
+  hpiCourseYears <- c()
+  tumCourseYears <- c()
+  includedQuestionnaires <- getIncludedQuestionnaires(getMotivationResults(COMPLETE_RESULTS, NEW_MOTIVATION_RESULT_IDS))
+  for (rowIndex in 1:nrow(includedQuestionnaires)) {
+    questionnaireInfo <- includedQuestionnaires[rowIndex,]
+    courseYearString <- paste0(questionnaireInfo$COURSE_YEAR, " (", questionnaireInfo$PARTICIPANTS, ")")
+    if (questionnaireInfo$UNI == HPI_NAME) {
+      hpiCourseYears <- c(hpiCourseYears, courseYearString)
+    } else {
+      tumCourseYears <- c(tumCourseYears, courseYearString)
+    }
+  }
+  topic <- c("Course year")
+  separator <- " "
+  hpi <- c(paste(hpiCourseYears, collapse = separator))
+  tum <- c(paste(tumCourseYears, collapse = separator))
+  pValue <- c("")
+  effectSize <- c("")
+  byUniStats <- motivation_stats[which(motivation_stats$comparison == "HPI<>TUM"),]
+  formatValues <- function(value) {
+    formattedValue <- str_remove_all(value, "HPI: ")
+    formattedValue <- str_remove_all(formattedValue, "TUM: ")
+    formattedValue <- str_replace_all(formattedValue, "Checked", "Yes")
+    formattedValue <- str_replace_all(formattedValue, "Not checked", "No")
+    return(formattedValue)
+  }
+  for (topicId in unique(byUniStats$question.id)) {
+    if (topicId == "Q102") {
+      next
+    }
+    topicStats <-  byUniStats[which(byUniStats$question.id == topicId),]
+    topic <- c(topic, topicStats$question.text)
+    hpi <- c(hpi, formatValues(topicStats$first.group.values))
+    tum <- c(tum, formatValues(topicStats$second.group.values))
+    digits <- 2
+    currentPValueDigits <- digits
+    currentPValue <- round(topicStats$p.value, digits = currentPValueDigits)
+    while (currentPValue == 0) {
+      currentPValueDigits = currentPValueDigits + 1
+      currentPValue <- round(topicStats$p.value, digits = currentPValueDigits)
+    }
+    pValue <- c(pValue, currentPValue)
+    effectSize <- c(effectSize, paste0(
+      round(topicStats$effect.size, digits = digits),
+      " (", topicStats$strict.effect.size.interpretation, ")"))
+  }
+  cleanMotivationStats <- data.frame(topic, hpi, tum, pValue, effectSize)
+  cleanMotivationStats <- cleanMotivationStats[order(cleanMotivationStats$pValue),]
+  return(cleanMotivationStats)
+}
+
+renderTable(getCleanMotivationStats(MOTIVATION_STATS))
+```
+
+A comparison with redundant results from the short version questionnaire HPI 2020 Q4 and the long version questionnaire HPI 2020 Q1 were made manually by evaluating `results/AllData/motivation-stats/redundant_motivation_results.csv`.
+Overall, the results are comparable, especially when only considering questions regarding motivation to participate in the course.
+
+When also comparing the expectations what to learn in the course, differences occur in the areas ethics, legal, analyzing ancestry, learning about DTC, and learning about tools for genome analysis. While for most areas, the results are expected (students expect to learn about a topic but are not motivated by it), it is surprising that students retrospectively were not motivated by learning about tools for genome analysis (while being motivated by learning about the analyses and in general conducting analyzes).
+
+## Overall results
+
+The table below shows all retrospective results. Other interesting results that cannot be derived directly from the table are written above the table.
+
+```{r retrospective-results-table, echo=FALSE, results='asis', include=TRUE}
+getRetrospectiveTableData <- function() {
+  source("assets/stratification/table.R", local = TRUE)
+  source("assets/stratification/utils.R", local = TRUE)
+
+  includedQuestions <- c(
+    "QX11", # In-house genotyping
+    "QX16", # Learning experience
+    "QX15", # Recommend again
+    "QX08", # PGT participation
+    "QX10", # PGT participation today (did participate)
+    "QX09", # PGT participation today (did not participate)
+    "Q402", # Collected password
+    "Q403", # Plan to collect password
+    "Q404", # Analyzes
+    "Q405", # Further analyzes
+    "QX19", # Adequately trained
+    "QX18", # Attitude change
+    "QX17", # Attitude change direction
+    "QX07", # Testing wo/ counseling
+    "QX12", # Relatives and friends
+    "QX13", # Ethics
+    "QX14"  # Obligatory
+  )
+  
+  # Get main table data
+  comparisonSpecification <- getComparisonSpecification()
+  hpiData <- comparisonSpecification[["by_uni"]][["populations"]][[HPI_NAME]]
+  tumData <- comparisonSpecification[["by_uni"]][["populations"]][[TUM_NAME]]
+  comparisonStats <- RETROSPECTIVE_STATS[which(RETROSPECTIVE_STATS$stratification == "by_uni"),]
+  tableData <- getTableData(includedQuestions, comparisonStats, firstGroupData = hpiData,
+                            secondGroupData = tumData, latex = IS_LATEX)
+  includedQuestionnaires <- rbind(getIncludedQuestionnaires(hpiData), getIncludedQuestionnaires(tumData))
+  
+  # Add further information to table
+  yesAnswer <- 1
+  noAnswer <- 2
+  checked <- 2
+  notChecked <- 1
+
+  formatAnswerString <- function(yesCount, noCount) {
+    return(paste("Yes:", yesCount, " ", "No:", noCount))
+  }
+  
+  ## Add medical background data
+  generalBackgroundQuestionId <- "QX04"
+  tumRetroBackgroundQuestionId <- "T207"
+  implicitMedicalBackground <- TUM_COMPLETE_YEAR
+  
+  hasMedicalBackground <- function(data, rowIndex) {
+    generalBackground <- data[rowIndex, generalBackgroundQuestionId]
+    tumRetroBackground <- data[rowIndex, tumRetroBackgroundQuestionId]
+    if (data$CLEAN_QUESTNNR[rowIndex] == implicitMedicalBackground) {
+      if (!is.na(generalBackground) | !is.na(tumRetroBackground)) {
+        output_print(paste(
+          "[WARNING]: Did not expect to see results in questionnaire of",
+          implicitMedicalBackground,
+          "- counting as medical background anyways"))
+      }
+      return(TRUE)
+    } else if (!is.na(generalBackground) & !is.na(tumRetroBackground)) {
+      output_print(paste("[WARNING]: Both background questions answered; skipping result"))
+      return(NA)
+    } else if (!is.na(generalBackground)) {
+      if (generalBackground == yesAnswer) {
+        return(TRUE)
+      } else if (generalBackground == noAnswer) {
+        return(FALSE)
+      } else {
+        output_print(paste(
+          "[WARNING]: Unexpected result", generalBackground, "for",
+          generalBackgroundQuestionId, "- skipping result"))
+        return(NA)
+      }
+    } else if (!is.na(tumRetroBackground)) {
+      otherAnswer <- 3
+      if (tumRetroBackground == yesAnswer) {
+        return(TRUE)
+      } else if (tumRetroBackground == noAnswer | tumRetroBackground == otherAnswer) {
+        return(FALSE)
+      } else {
+        output_print(paste(
+          "[WARNING]: Unexpected result", tumRetroBackground, "for",
+          tumRetroBackgroundQuestionId, "- skipping result"))
+        return(NA)
+      }
+    }
+    return(NA)
+  }
+  
+  getBackgroundCounts <- function(data) {
+    yesCount <- 0
+    noCount <- 0
+    for (rowIndex in 1:nrow(data)) {
+      medicalBackground <- hasMedicalBackground(data, rowIndex)
+      if (!is.na(medicalBackground)) {
+        if (medicalBackground) {
+          yesCount <- yesCount + 1
+        } else {
+          noCount <- noCount + 1
+        }
+      }
+    }
+    return(formatAnswerString(yesCount, noCount))
+  }
+  
+  backgroundResults <- data.frame(
+    question = c(COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$id == generalBackgroundQuestionId), "text"]),
+    hpiCounts = c(getBackgroundCounts(hpiData)),
+    tumCounts = c(getBackgroundCounts(tumData)),
+    pValues = c("–"),
+    effectSizes = c("–"))
+  colnames(backgroundResults) <- colnames(tableData)
+  tableData <- rbind(backgroundResults, tableData)
+  
+  ## Add course year data
+  getCourseYears <- function(questionnaireInformation, uni) {
+    relevantQuestionnaires <- questionnaireInformation[which(questionnaireInformation$UNI == uni),]
+    years <- c()
+    for (rowIndex in 1:nrow(relevantQuestionnaires)) {
+      relevantQuestionnaire <- relevantQuestionnaires[rowIndex,]
+      courseYear <- relevantQuestionnaire$COURSE_YEAR
+      courseYear <- str_replace(courseYear, "SoSe", "Summer")
+      courseYear <- str_replace(courseYear, "WiSe", "Winter")
+      years <- c(years, paste0(courseYear, ": ", relevantQuestionnaire$PARTICIPANTS))
+    }
+    return(paste(years, collapse = " "))
+  }
+  courseYearData <- data.frame(
+    question = c("In which year did you participate in the course?"),
+    hpiCounts = c(getCourseYears(includedQuestionnaires, HPI_NAME)),
+    tumCounts = c(getCourseYears(includedQuestionnaires, TUM_NAME)),
+    pValues = c("–"),
+    effectSizes = c("–"))
+  colnames(courseYearData) <- colnames(tableData)
+  tableData <- rbind(courseYearData, tableData)
+  
+  ## Add joint past analyses data
+  detailedPastAnalysesQuestionId <- "Q404"
+  basicPastAnalysesQuestionId <- "T203"
+  getBasicPastAnalysesResults <- function(data, detailedPastAnalysesQuestionId, basicPastAnalysesQuestionId) {
+    results <- c()
+    for (rowIndex in 1:nrow(data)) {
+      detailedAnalysesReponse <- data[rowIndex, detailedPastAnalysesQuestionId]
+      basicAnalysesResponse <- data[rowIndex, basicPastAnalysesQuestionId]
+      if (!is.na(detailedAnalysesReponse) & !is.na(basicAnalysesResponse)) {
+        output_print(paste("[WARNING]: Unexpected result,", detailedPastAnalysesQuestionId, "and", basicAnalysesResponse, "were answered"))
+        next
+      }
+      if (!is.na(basicAnalysesResponse)) {
+        results <- c(results, basicAnalysesResponse)
+      }
+      if (!is.na(detailedAnalysesReponse)) {
+        onlyReceiveId <- paste0(detailedPastAnalysesQuestionId, "_01")
+        onlyReceiveResponse <- data[rowIndex, onlyReceiveId]
+        if (onlyReceiveResponse == checked) {
+          results <- c(results, noAnswer)
+        } else {
+          if (detailedAnalysesReponse > 0) {
+            results <- c(results, yesAnswer)
+          } else {
+            output_print(paste("[WARNING]: Unexpected result, nothing was answered for", detailedPastAnalysesQuestionId))
+          }
+        }
+      }
+    }
+    return(results)
+  }
+  hpiResults <- getBasicPastAnalysesResults(hpiData, detailedPastAnalysesQuestionId, basicPastAnalysesQuestionId)
+  tumResults <- getBasicPastAnalysesResults(tumData, detailedPastAnalysesQuestionId, basicPastAnalysesQuestionId)
+  valueMatrix <- data.frame(
+    population = c(rep(HPI_NAME, length(hpiResults)), rep(TUM_NAME, length(tumResults))),
+    value = c(hpiResults, tumResults))
+  pastAnalysesStats <- getStatistics(valueMatrix)
+  question <- c(COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$id == detailedPastAnalysesQuestionId), "text"])
+  hpiCounts <- c(formatAnswerString(
+    nrow(valueMatrix[which(valueMatrix$population == HPI_NAME & valueMatrix$value == yesAnswer),]),
+    nrow(valueMatrix[which(valueMatrix$population == HPI_NAME & valueMatrix$value == noAnswer),])
+  ))
+  tumCounts <- c(formatAnswerString(
+    nrow(valueMatrix[which(valueMatrix$population == TUM_NAME & valueMatrix$value == yesAnswer),]),
+    nrow(valueMatrix[which(valueMatrix$population == TUM_NAME & valueMatrix$value == noAnswer),])
+  ))
+  pValues <- c(formatNumericValue(as.double(pastAnalysesStats[2])))
+  effectSizes <- c(formatEffectSize(as.double(pastAnalysesStats[7]), pastAnalysesStats[8]))
+  basicPastAnalysesResults <- data.frame(question, hpiCounts, tumCounts, pValues, effectSizes)
+  colnames(basicPastAnalysesResults) <- colnames(tableData)
+  tableData <- rbind(tableData, basicPastAnalysesResults)
+  
+  # Further analyses (not in table)
+  printFurtherAnalysisResults <- function() {
+    # Get QX14 answers only for TUM medical students
+    yesCount <- 0
+    noCount <- 0
+    for (rowIndex in 1:nrow(tumData)) {
+      medicalBackground <- hasMedicalBackground(tumData, rowIndex)
+      if (!is.na(medicalBackground)) {
+        if (medicalBackground) {
+          obligatoryResponse <- tumData[rowIndex, "QX14"]
+          if (obligatoryResponse == yesAnswer) {
+            yesCount <- yesCount + 1
+          } else if (obligatoryResponse == noAnswer) {
+            noCount <- noCount + 1
+          } else {
+            output_print(paste("[WARNING]: Unexpected result for QX14:", obligatoryResponse))
+          }
+        }
+      }
+    }
+    output_print(paste("QX14 (should course be obligatory for medical studies) for only TUM medical:", formatAnswerString(yesCount, noCount)))
+    
+    # Get number of students that did not get genotyped but think it is useful for learning
+    interestingQuestions <- c("QX16", "QX08", "QX10", "QX09")
+    questionResults <- getResultsForQuestions(interestingQuestions)
+    interestingResults <- questionResults[which(
+      questionResults$CLEAN_QUESTNNR == "Q4" & questionResults$QX16 == "Yes" & questionResults$QX08 == "No"),]
+    interestingResults <- replaceQuestionIdsWithText(interestingResults, interestingQuestions)
+    output_print(paste(nrow(interestingResults), "students think PGT is useeful for the learning experience but did not get genotyped themselves"))
+  }
+  printFurtherAnalysisResults()
+
+  return(tableData)
+}
+
+renderTable(getRetrospectiveTableData())
+```
+
+# Change over course
+
+Different changes can be investigated:
+
+* HPI 2020 Q1 to Q3 (long version questionnaires, `results/AllData/sankey/hpi_sose-2020_sankeys_Q1-Q3_binary.csv`)
+* HPI 2020 Q1 to Q4 (matched answers of long version questionnaires to short version questionnaire; not necessarily complete, `results/AllData/sankey/hpi_sose-2020_sankeys_Q1-Q4_binary.csv`)
+* TUM 2020/21 Q1 to Q4 (short version questionnaires, unpaired, `results/AllData/stacked-bar/tum_wise-2020-21.csv`)
+* HPI 2021 (short version questionnaires, paired, `results/AllData/sankey/hpi_sose-2021_sankeys.csv`)
+* HPI 2021 (short version questionnaires, unpaired [to be better comparable to TUM, but probably not really useful], `results/AllData/stacked-bar/hpi_sose-2021.csv`)
+
+5-point Likert scales from long questionnaires were mapped to binary answers. The full analyses can be found in the given file parts without the `binary` postfix.
+
+All changes are summarized in `results/AllData/evolution_stats.csv` (some colums such as power analysis are missing because it was only conducted for unpaired analyses).
+
+```{r analyses-over-course, include=FALSE}
+getEvolutionStats <- function() {
+  getEvolutionStatsForUniAndYear <- function(uni, year, paired, getSpecificPlotParameters, binary, outputPostfix, forceRun) {
+    source("assets/sankeyPlots/createCombinedSankeyPlots.R", local = TRUE)
+    source("assets/stratification/table.R", local = TRUE)
+    source("modules/view/plotting/rendering.R", local = TRUE)
+    source("modules/view/plotting/label.R", local = TRUE)
+    source("modules/statistics/utils.R", local = TRUE)
+    
+    # Function definitions
+    
+    getOutputFileName <- function(year, uni, outputPostfix = NA) {
+      fileSaveYear <- str_replace_all(str_replace_all(year, " ", "-"), "/", "-")
+      separator <- "_"
+      outputFileName <- paste(tolower(uni), tolower(fileSaveYear), sep = separator)
+      if (!is.na(outputPostfix)) {
+        outputFileName <- paste(outputFileName, outputPostfix, sep = separator)
+      }
+      return(outputFileName)
+    }
+    
+    createSankeysForUniAndYear <- function(parameters) {
+      results <- parameters[["results"]]
+      questions <- parameters[["questions"]]
+      uni <- parameters[["uni"]]
+      year <- parameters[["year"]]
+      binary <- parameters[["binary"]]
+      plotParameters <- parameters[["plot.parameters"]]
+      createCombinedSankeyPlots(plotParameters, parameters[["output.name"]],
+                                addSubfigureKey = FALSE, binary = binary)
+      return(read.csv(parameters[["output.path"]])) 
+    }
+    
+    createStackedBarplotsForUniAndYear <- function(parameters) {
+      results <- parameters[["results"]]
+      questions <- parameters[["questions"]]
+      uni <- parameters[["uni"]]
+      year <- parameters[["year"]]
+      outputDirectory <- file.path(COMPLETE_RESULTS_DIRECTORY, parameters[["output.directory"]])
+      plotParameters <- parameters[["plot.parameters"]]
+      comparisonStatistics <- list()
+      plotPaths <- c()
+      for (questionName in names(plotParameters)) {
+        title <- plotParameters[[questionName]][["title"]]
+        if (grepl("Option: Residual option", title, fixed = TRUE)) {
+          next
+        }
+        uni <- plotParameters[[questionName]][["uni"]]
+        year <- plotParameters[[questionName]][["year"]]
+        questionnaires <- names(plotParameters[[questionName]][["question.list"]])
+        responses <- NULL
+        for (questionnaire in names(plotParameters[[questionName]][["question.list"]])) {
+          questionId <- plotParameters[[questionName]][["question.list"]][[questionnaire]]
+          questionResponses <- results[
+            which(results$UNI == uni &
+                    results$COURSE_YEAR == year &
+                    results$QUESTNNR == questionnaire),
+            c("CLEAN_QUESTNNR", questionId)]
+          for (rowIndex in 1:nrow(questionResponses)) {
+            questionResponse <- questionResponses[rowIndex, questionId]
+            if (!is.na(questionResponse)) {
+              responseMeaning <- COMPLETE_OPTIONS[
+                which(COMPLETE_OPTIONS$VAR == questionId & COMPLETE_OPTIONS$RESPONSE == questionResponse),
+                "MEANING"]
+              if (responseMeaning == "Ja") {
+                responseMeaning <- "Yes"
+              }
+              questionResponses[rowIndex, questionId] <- responseMeaning
+            }
+          }
+          colnames(questionResponses) <- c("CLEAN_QUESTNNR", questionName)
+          responses <- rbind(responses, questionResponses)
+        }
+        responses <- table(responses[[questionName]], responses$CLEAN_QUESTNNR)
+        
+        # Get statistics
+        comparisons <- getPairwiseComparisons(colnames(responses))
+        statsStrings <- c()
+        for (comparisonName in names(comparisons)) {
+          firstQuestionnaire <- comparisons[[comparisonName]][1]
+          secondQuestionnaire <- comparisons[[comparisonName]][2]
+          population <- c()
+          value <- c()
+          for (questionnaire in colnames(responses)) {
+            if (questionnaire %in% comparisons[[comparisonName]]) {
+              for (response in row.names(responses)) {
+                responseCount <- responses[response, questionnaire]
+                if (responseCount > 0) {
+                  for (count in 1:responseCount) {
+                    population <- c(population, questionnaire)
+                    value <- c(value, response)
+                  }
+                }
+              }
+            }
+          }
+          valueStrings <- c()
+          for (questionnaire in unique(population)) {
+            questionnaireResponses <- value[which(population == questionnaire)]
+            valueString <- paste0(questionnaire, ": ", paste(questionnaireResponses, collapse = ", "))
+            valueStrings <- c(valueStrings, valueString)
+          }
+          values <- paste(valueStrings, collapse = "\n")
+          valueMatrix <- data.frame(population, value)
+          stats <- getStatistics(valueMatrix)
+          comparisonStatistics[[paste(questionId, comparisonName)]] <- c(title, comparisonName, stats, values)
+          pValue <- formatNumericValue(as.double(stats[2]))
+          if (pValue <= 0.05) {
+            output_print(paste("[INFO] Significant change (unpaired):", uni, year, questionId, comparisonName))
+          }
+          effectSize <- formatEffectSize(as.double(stats[7]), stats[8])
+          statsStrings <- c(statsStrings, paste0(comparisonName, ": p = ", pValue, ", V = ", effectSize))
+        }
+  
+        singleOutputDirectory <- file.path(outputDirectory, "single")
+        if (!dir.exists(singleOutputDirectory)) {
+          dir.create(singleOutputDirectory)
+        }
+        fileName <- file.path(singleOutputDirectory, paste(outputName, questionId, sep = "_"))
+        renderStackedBarplot <- function(plotParams) {
+          responses <- plotParams[["responses"]]
+          statsStrings <- plotParams[["stats.strings"]]
+          
+          # Adapt responses to be plotted
+          newColnames <- c()
+          getParticipantNumber <- function(responses, questionnaire) {
+            return(sum(responses[,questionnaire]))
+          }
+          for (questionnaireName in colnames(responses)) {
+            newColname <- paste0(questionnaireName,
+                                 "\n(N = ", getParticipantNumber(responses, questionnaireName), ")")
+            newColnames <- c(newColnames, newColname)
+          }
+          colnames(responses) <- newColnames
+          newRowNames <- c()
+          colors <- c()
+          for (response in row.names(responses)) {
+            positiveColor <- getColor(5)
+            stillPositiveColor <- getColor(4)
+            negativeColor <- getColor(1)
+            neutralColor <- getColor(6)
+            if (response == "Checked" | response == "Ja") {
+              response <- "Yes"
+            }
+            if (response == "Not checked") {
+              response <- "No"
+            }
+            if (response == "Through the course I have become more critical about genetic analysis") {
+              response <- "More critical"
+            }
+            if (response == "Through the course I have gained a more positive opinion on genetic analysis") {
+              response <- "More positive"
+            }
+            if (response == "Yes" | response == "Absolutely necessary" | response == "More positive") {
+              color <- positiveColor
+            } else if (response == "No" | response == "More critical") {
+              color <- negativeColor
+            } else if (response == "Rather important") {
+              color <- stillPositiveColor
+            } else if (response == "I don't know" | response == "Neutral" | response == "Not answered") {
+              color <- neutralColor
+            } else {
+              output_print(paste0("Assigning neutral color to unhanndled response: ", response))
+              color <- neutralColor
+            }
+            colors <- c(colors, color)
+            newRowNames <- c(newRowNames, response)
+          }
+          row.names(responses) <- newRowNames
+          for (questionnaire in colnames(responses)) {
+            participants <- getParticipantNumber(responses, questionnaire)
+            for (response in row.names(responses)) {
+              responseCount <- responses[response, questionnaire]
+              percentage <- round(responseCount / participants * 100)
+              responses[response, questionnaire] <- percentage
+            }
+          }
+  
+          # Create plot
+          title <- breakText(title, 80)
+          statsString <- breakText(paste(statsStrings, collapse = "; "), 100)
+          statsStringLines <- str_count(statsString, "\n") + 1
+          maxRange <- 100
+          par(mar=c(5 + statsStringLines, 4, 4, 11.5))
+          barplot(responses, main = title, border = NA, xlim = range(pretty(c(0,maxRange))),
+                  xlab = "Students' respones (%)", horiz = TRUE)
+          title(sub = statsString, line = 4 + statsStringLines)
+          abline(v = 0:maxRange, col = "grey", lty = "dotted")
+          abline(v = seq(0, maxRange, by = 10), col = "grey", lty = "solid")
+          barplot(responses, add = TRUE, col = colors, border = NA, horiz = TRUE)
+          legend(par("usr")[2] + 0.05, par("usr")[4], xpd = NA, bty = "n",
+                 legend = row.names(responses),fill = colors)
+        }
+        pngPath <- paste0(fileName, ".png")
+        plotPaths <- c(plotPaths, pngPath)
+        pdfPath <- paste0(fileName, ".pdf")
+        createPng(renderStackedBarplot, list("responses" = responses, "stats.strings" = statsStrings), pngPath)
+        createPdf(renderStackedBarplot, list("responses" = responses, "stats.strings" = statsStrings), pdfPath)
+      }
+      comparisonStatistics <- as.data.frame(do.call(rbind, comparisonStatistics))
+      colnames(comparisonStatistics) <- c("question.text", "comparison", statisticColumnNames, "values")
+      write.csv(comparisonStatistics, parameters[["output.path"]], row.names = FALSE)
+      combinePlots(plotPaths, file.path(outputDirectory, parameters[["output.name"]]))
+      return(comparisonStatistics)
+    }
+  
+    # Actual function
+  
+    if (binary) {
+      if (is.na(outputPostfix)) {
+        outputPostfix <- "binary"
+      } else {
+        outputPostfix <- paste(outputPostfix, "binary", sep = "_")
+      }
+    }
+    if (!is.null(getSpecificPlotParameters)) {
+      plotParameters <- getSpecificPlotParameters()
+    } else {
+      plotParameters <- getPlotParameters(COMPLETE_RESULTS, COMPLETE_QUESTIONS, uni, year)
+    }
+    if (paired) {
+      # These are set in createSankeyPlot
+      outputDirectory <- "sankey"
+      if (is.na(outputPostfix)) {
+        outputPostfix <- "sankeys"
+      } else {
+        outputPostfix <- paste("sankeys", outputPostfix, sep = "_")
+      }
+      getStatsFunction <- createSankeysForUniAndYear
+    } else {
+      outputDirectory <- "stacked-bar"
+      getStatsFunction <- createStackedBarplotsForUniAndYear
+    }
+    if (!dir.exists(file.path(COMPLETE_RESULTS_DIRECTORY, outputDirectory))) {
+      dir.create(file.path(COMPLETE_RESULTS_DIRECTORY, outputDirectory))
+    }
+    outputName <- paste0(getOutputFileName(year, uni, outputPostfix))
+    outputPath <- file.path(COMPLETE_RESULTS_DIRECTORY, outputDirectory, paste0(outputName, ".csv"))
+    runParameters <- list(
+      "results" = COMPLETE_RESULTS,
+      "questions" = COMPLETE_QUESTIONS,
+      "uni" = uni,
+      "year" = year,
+      "plot.parameters" = plotParameters,
+      "output.directory" = outputDirectory,
+      "output.name" = outputName,
+      "output.path" = outputPath,
+      "binary" = binary
+    )
+    return(runIfNotPresent(getStatsFunction, outputPath,  forceRun = forceRun,
+                           runParameters = runParameters, readOutput = read.csv))
+  }
+  
+  enrichFirstAnalysisSankeyParameters <- function(plotParameters, uni, year) {
+    for (questionName in names(plotParameters)) {
+      questionSpecification <- plotParameters[[questionName]]
+      questionSpecification[["uni"]] <- uni
+      questionSpecification[["year"]] <- year
+      plotParameters[[questionName]] <- questionSpecification
+    }
+    return(plotParameters)
+  }
+  
+  getSankeyParametersUntilQ3 <- function() {
+    source("genomics-lecture-specific/analyze-data/first-analysis/scripts/analyzeEvolution.R", local = TRUE)
+    uni <- HPI_NAME
+    year <- HPI_FIRST_YEAR
+    plotParameters <- list()
+    evolutionSpecification <- getEvolutionSpecification()
+    for (topic in names(evolutionSpecification)) {
+      if (topic == "titles") {
+        next
+      }
+      topicSpecification <- evolutionSpecification[[topic]]
+      plotParameters <- c(plotParameters, enrichFirstAnalysisSankeyParameters(topicSpecification, uni, year))
+    }
+    analyzeQuestionsNotCovered()
+    return(plotParameters)
+  }
+  
+  getSankeyParametersUntilQ4 <- function() {
+    source("genomics-lecture-specific/analyze-data/first-analysis/scripts/Q1-Q4Sankeys.R", local = TRUE)
+    uni <- HPI_NAME
+    year <- HPI_FIRST_YEAR
+    q1ToQ4SankeyParameters <- getQ1ToQ4SankeyParameters()
+    plotParameters <- enrichFirstAnalysisSankeyParameters(q1ToQ4SankeyParameters, uni, year)
+    return(plotParameters)
+  }
+  
+  getPlotParameters <- function(results, questions, uni, year) {
+    source("modules/data/questions.R", local = TRUE)
+    getCommonCombinationQuestions <- function(results, questions, uni, year) {
+      timeData <- results[which(results$UNI == uni & results$COURSE_YEAR == year),]
+      allQuestionnaires <- unique(timeData$QUESTNNR)
+      # Get all combinations of questionnaires that might make sense to plot
+      questionnaireCombinations <- list()
+      for (startingQuestionnaireIndex in 1:(length(allQuestionnaires)-1)) {
+        for (endingQuestionnaireIndex in (startingQuestionnaireIndex+1):length(allQuestionnaires)) {
+          questionnaireCombinations <- append(
+            questionnaireCombinations,
+            list(allQuestionnaires[startingQuestionnaireIndex:endingQuestionnaireIndex])
+          )
+        }
+      }
+      # Sort by length of questionnaire list
+      questionnaireCombinations <- questionnaireCombinations[rev(order(
+        sapply(questionnaireCombinations, length)
+      ))]
+      # Iterate over combinations and, if not already in includedQuestions,
+      # add to commonCombinationQuestions and includedQuestions
+      commonCombinationQuestions <- list()
+      includedQuestions <- c()
+      for (questionnaireCombination in questionnaireCombinations) {
+        commonQuestions <- getCommonQuestions(
+          lapply(questionnaireCombination, function(questionnaire) {
+            return(timeData[which(timeData$QUESTNNR == questionnaire),])
+          })
+        )
+        if (length(commonQuestions) > 0) {
+          for (questionId in commonQuestions[which(!commonQuestions %in% includedQuestions)]) {
+            commonCombinationQuestions <- append(commonCombinationQuestions, list(
+              list("questionId" = questionId, "questionnaires" = questionnaireCombination)
+            ))
+            includedQuestions <- c(includedQuestions, questionId)
+          }
+        }
+      }
+      return(commonCombinationQuestions)
+    }
+    commonCombinationQuestions <- getCommonCombinationQuestions(results, questions, uni, year)
+    plotParameters <- list()
+    for (index in 1:length(commonCombinationQuestions)) {
+      questionId <- commonCombinationQuestions[[index]][["questionId"]]
+      questionnaires <- commonCombinationQuestions[[index]][["questionnaires"]]
+      question <- questions[which(questions$id == questionId),]
+      plotParameters[[questionId]] <- list(
+        "title" = getQuestionTitle(question),
+        "uni" = uni,
+        "year" = year,
+        "question.list" = sapply(questionnaires, function(questionnaire) {
+          return(questionId)
+        }, USE.NAMES = TRUE)
+      )
+    }
+    return(plotParameters)
+  }
+  
+  getExtendedPlotParameters <- function(uni, year, getFullQuestionnaireName) {
+    source("modules/data/questions.R", local = TRUE)
+    plotParameters <- getPlotParameters(COMPLETE_RESULTS, COMPLETE_QUESTIONS, uni, year)
+    
+    extendPlotParameters <- function(plotParameters, futureQuestionId, pastQuestionId) {
+      setFullQuestionnaireNames <- function(questionList) {
+        currentNames <- names(questionList)
+        newNames <- unlist(lapply(currentNames, getFullQuestionnaireName))
+        names(questionList) <- newNames
+        return(questionList)
+      }
+      extendedQuestionId <- paste0(futureQuestionId, "_", pastQuestionId)
+      extendedQuestionTitle <- str_replace_all(
+        getQuestionTitle(COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$id == pastQuestionId),]),
+        "Did you",
+        "Do you plan to (Q1-Q3) or did you (Q4)")
+      plotParameters[[extendedQuestionId]] <- list(
+        "title" = extendedQuestionTitle,
+        "uni" = uni,
+        "year" = year,
+        "question.list" = setFullQuestionnaireNames(list(
+          "Q1" = futureQuestionId,
+          "Q2" = futureQuestionId,
+          "Q3" = futureQuestionId,
+          "Q4" = pastQuestionId
+        ))
+      )
+      return(plotParameters)
+    }
+  
+    # Password collection plan (QX05) vs. execution (Q402)
+    qx05QuestionId <- "QX05"
+    q402QuestionId <- "Q402"
+    plotParameters <- extendPlotParameters(plotParameters, qx05QuestionId, q402QuestionId)
+    # Specific analyses plan (QX06) vs. execution (Q404)
+    for (index in c(c(1:4), c(6, 7))) { # option 5 is missing
+      qx06QuestionId <- paste0("QX06_0", index)
+      q404QuestionId <- paste0("Q404_0", index)
+      plotParameters <- extendPlotParameters(plotParameters, qx06QuestionId, q404QuestionId)
+    }
+    # Remove now redundant questions
+    for (questionId in c(qx06QuestionId, q404QuestionId, qx05QuestionId, q402QuestionId)) {
+      if (questionId %in% names(plotParameters)) {
+        plotParameters[[questionId]] <- NULL
+      }
+    }
+    return(plotParameters)
+  }
+  
+  getPlotParametersForSecondHpiYear <- function() {
+    getFullQuestionnaireName <- function(cleanQuestionnaire) {
+      questionnaireName <- paste0(cleanQuestionnaire, "_HPI")
+      return(questionnaireName)
+    }
+    plotParameters <- getExtendedPlotParameters(HPI_NAME, HPI_SECOND_YEAR, getFullQuestionnaireName)
+    return(plotParameters)
+  }
+  
+  getPlotParametersForCompleteTumYear <- function() {
+    getFullQuestionnaireName <- function(cleanQuestionnaire) {
+      questionnaireName <- paste0("TUM_", cleanQuestionnaire)
+      if (cleanQuestionnaire == "Q4") {
+        questionnaireName <- paste0(cleanQuestionnaire, "_TUM")
+      }
+      return(questionnaireName)
+    }
+    plotParameters <- getExtendedPlotParameters(TUM_NAME, TUM_COMPLETE_YEAR, getFullQuestionnaireName)
+    plotParameters[["QX05_Q402"]][["question.list"]][["TUM_Q3"]] <- "Q302"
+    return(plotParameters)
+  }
+
+  evolutionStatsParams <- list(
+    "HPI_2020_Q1_Q3_paired" = list(
+      "uni" = HPI_NAME,
+      "year" = HPI_FIRST_YEAR,
+      "paired" = TRUE,
+      "binary" = FALSE,
+      "force.run" = FALSE,
+      "get.specific.parameters" = getSankeyParametersUntilQ3,
+      "output.postfix" = "Q1-Q3"),
+    "HPI_2020_Q1_Q3_paired_binary" = list(
+      "uni" = HPI_NAME,
+      "year" = HPI_FIRST_YEAR,
+      "paired" = TRUE,
+      "binary" = TRUE,
+      "force.run" = FALSE,
+      "get.specific.parameters" = getSankeyParametersUntilQ3,
+      "output.postfix" = "Q1-Q3"),
+    "HPI_2020_Q1_Q4_paired" = list(
+      "uni" = HPI_NAME,
+      "year" = HPI_FIRST_YEAR,
+      "paired" = TRUE,
+      "binary" = FALSE,
+      "force.run" = FALSE,
+      "get.specific.parameters" = getSankeyParametersUntilQ4,
+      "output.postfix" = "Q1-Q4"),
+    "HPI_2020_Q1_Q4_paired_binary" = list(
+      "uni" = HPI_NAME,
+      "year" = HPI_FIRST_YEAR,
+      "paired" = TRUE,
+      "binary" = TRUE,
+      "force.run" = FALSE,
+      "get.specific.parameters" = getSankeyParametersUntilQ4,
+      "output.postfix" = "Q1-Q4"),
+    "HPI_2021_paired" = list(
+      "uni" = HPI_NAME,
+      "year" = HPI_SECOND_YEAR,
+      "paired" = TRUE,
+      "binary" = FALSE,
+      "force.run" = FALSE,
+      "get.specific.parameters" = getPlotParametersForSecondHpiYear,
+      "output.postfix" = NA),
+    "HPI_2021_UNPAIRED" = list(
+      "uni" = HPI_NAME,
+      "year" = HPI_SECOND_YEAR,
+      "paired" = FALSE,
+      "binary" = FALSE,
+      "force.run" = FALSE,
+      "get.specific.parameters" = getPlotParametersForSecondHpiYear,
+      "output.postfix" = NA),
+    "TUM" = list(
+      "uni" = TUM_NAME,
+      "year" = TUM_COMPLETE_YEAR,
+      "paired" = FALSE,
+      "binary" = FALSE,
+      "force.run" = FALSE,
+      "get.specific.parameters" = getPlotParametersForCompleteTumYear,
+      "output.postfix" = NA)
+  )
+  
+  questionTitle <- c()
+  uni <- c()
+  year <- c()
+  comparison <- c()
+  isPaired <- c()
+  isBinary <- c()
+  pValue <- c()
+  effectSize <- c()
+  effectSizeInterpretation <- c()
+  values <- c()
+  for (statsKey in names(evolutionStatsParams)) {
+    params <- evolutionStatsParams[[statsKey]]
+    currentUni <- params[["uni"]]
+    currentYear <- params[["year"]]
+    paired <- params[["paired"]]
+    binary <- params[["binary"]]
+    forceRun <- params[["force.run"]]
+    getSpecificPlotParameters <- params[["get.specific.parameters"]]
+    outputPostfix <- params[["output.postfix"]]
+    stats <- getEvolutionStatsForUniAndYear(currentUni, currentYear, paired,
+        getSpecificPlotParameters = getSpecificPlotParameters, binary = binary,
+        outputPostfix = outputPostfix, forceRun = forceRun)
+    uni <- c(uni, rep(currentUni, nrow(stats)))
+    year <- c(year, rep(currentYear, nrow(stats)))
+    isPaired <- c(isPaired, rep(paired, nrow(stats)))
+    isBinary <- c(isBinary, rep(binary, nrow(stats)))
+    values <- c(values, stats[["values"]])
+    if (paired) {
+      questionTitle <- c(questionTitle, stats[["titles"]])
+      comparison <- c(comparison, stats[["comparisons"]])
+      pValue <- c(pValue, stats[["p_values"]])
+      effectSize <- c(effectSize, stats[["effect_values"]])
+      effectSizeInterpretation <- c(effectSizeInterpretation, stats[["effect_interpretation_values"]])
+    } else {
+      questionTitle <- c(questionTitle, stats[["question.text"]])
+      comparison <- c(comparison, stats[["comparison"]])
+      pValue <- c(pValue, stats[["p.value"]])
+      effectSize <- c(effectSize, stats[["effect.size"]])
+      effectSizeInterpretation <- c(effectSizeInterpretation, stats[["strict.effect.size.interpretation"]])
+    }
+  }
+  evolution_stats <- data.frame(questionTitle, uni, year, comparison, isPaired, isBinary, pValue, effectSize, effectSizeInterpretation, values)
+  write.csv(evolution_stats, EVOLUTION_STATS_PATH, row.names = FALSE)
+  return(evolution_stats)
+}
+EVOLUTION_STATS_PATH <- file.path(COMPLETE_RESULTS_DIRECTORY,"evolution_stats.csv")
+EVOLUTION_STATS <- runIfNotPresent(getEvolutionStats, EVOLUTION_STATS_PATH, forceRun = FALSE, readOutput = read.csv)
+
+```
+
+# Supplements
+
+For the participant and survey period table, most number can be found in the result plots or the first analysis. Other numbers are printed below:
+
+```{r participant-table, echo=FALSE, results='asis', include=TRUE}
+printAdditionalParticipationNumbers <- function() {
+  hpiSecondYearData <- COMPLETE_RESULTS[which(COMPLETE_RESULTS$COURSE_YEAR == HPI_SECOND_YEAR),]
+  hpiSecondYearQuestionnaires <- unique(hpiSecondYearData$CLEAN_QUESTNNR)
+  for (questionnaireIndex in 1:length(hpiSecondYearQuestionnaires)) {
+    currentQuestionnaire <- hpiSecondYearQuestionnaires[questionnaireIndex]
+    print(paste0("Complete participants for ", currentQuestionnaire, ":"))
+    questionnaireSerials <- hpiSecondYearData[which(
+      hpiSecondYearData$CLEAN_QUESTNNR == currentQuestionnaire),"SERIAL"]
+    if (questionnaireIndex > 1) {
+      for (earlierQuestionnaireIndex in 1:(questionnaireIndex - 1)) {
+        earlierQuestionnaire <- hpiSecondYearQuestionnaires[earlierQuestionnaireIndex]
+        earlierSerials <- hpiSecondYearData[which(
+          hpiSecondYearData$CLEAN_QUESTNNR == earlierQuestionnaire),"SERIAL"]
+        questionnaireSerials <- base::intersect(questionnaireSerials, earlierSerials)
+      }
+    }
+    print(length(questionnaireSerials))
+  }
+}
+printAdditionalParticipationNumbers()
+
+printApproximateSurveyPeriods <- function() {
+  groups <- list(
+    list("UNI" = HPI_NAME, "COURSE_YEAR" = HPI_FIRST_YEAR),
+    list("UNI" = TUM_NAME, "QUESTNNR" = "TUM_Retrospective"),
+    list("UNI" = TUM_NAME, "COURSE_YEAR" = TUM_COMPLETE_YEAR),
+    list("UNI" = HPI_NAME, "COURSE_YEAR" = HPI_SECOND_YEAR)
+  )
+  printApproximateSurveyPeriod <- function(groupSpecification) {
+    groupData <- COMPLETE_RESULTS
+    outputString <- "Approximate survey periods for"
+    for (columnName in names(groupSpecification)) {
+      columnValue <- groupSpecification[[columnName]]
+      groupData <- groupData[which(groupData[columnName] == columnValue),]
+      outputString <- paste0(outputString, " ", columnName, " = ", columnValue)
+    }
+    print(paste0(outputString, ":"))
+    for (questionnaire in unique(groupData$CLEAN_QUESTNNR)) {
+      questionnaireData <- groupData[which(groupData$CLEAN_QUESTNNR == questionnaire),]
+      earliestDate <- min(questionnaireData$STARTED)
+      latestDate <- max(questionnaireData$STARTED)
+      print(paste0("   ", questionnaire, ": ", substr(earliestDate, 1, 10), " – ", substr(latestDate, 1, 10)))
+    }
+  }
+  for (groupSpecification in groups) {
+    printApproximateSurveyPeriod(groupSpecification)
+  }
+}
+printApproximateSurveyPeriods()
+```
+
+```{r aggregated-data, include=FALSE}
+getAggregatedData <- function() {
+  source("modules/data/questions.R")
+  source("modules/view/plotting/label.R")
+  source("modules/statistics/utils.R")
+
+  aggregatedData <- list()
+  addListData <- function(list, key, value) {
+    if (key %in% names(list)) {
+      list[[key]] <- c(list[[key]], value)
+    } else {
+      list[[key]] <- c(value)
+    }
+    return(list)
+  }
+  THIS_OPTION_DATA <- COMPLETE_OPTIONS
+  CLEAN <- c()
+  getCleanOption <- function(optionMeaning) {
+    return(str_replace(replaceLabel(optionMeaning), "\n", " "))
+  }
+  for (optionIndex in 1:nrow(THIS_OPTION_DATA)) {
+    optionMeaning <- THIS_OPTION_DATA[optionIndex, "MEANING"]
+    cleanOption <- getCleanOption(optionMeaning)
+    CLEAN <- c(CLEAN, cleanOption)
+  }
+  THIS_OPTION_DATA$CLEAN <- CLEAN
+  SKIPPED_QUESTIONS <- c("IO03")
+  for (questionIndex in 1:nrow(COMPLETE_QUESTIONS)) {
+    question <- COMPLETE_QUESTIONS[questionIndex,]
+    if (question$type %in% c("OPEN", "SYSTEM")) {
+      next
+    }
+    for (uni in unique(COMPLETE_RESULTS$UNI)) {
+      uniResults <- COMPLETE_RESULTS[which(COMPLETE_RESULTS$UNI == uni),]
+      if (uni == TUM_NAME) {
+        uniResults$COURSE_YEAR <- unlist(
+          lapply(uniResults$COURSE_YEAR, function(currentCourseYear) {
+            if (currentCourseYear == TUM_COMPLETE_YEAR) {
+              return(currentCourseYear)
+            } else {
+              return(paste("Before", TUM_COMPLETE_YEAR))
+            }
+          }))
+      }
+      for (courseYear in unique(uniResults$COURSE_YEAR)) {
+        uniYearResults <- uniResults[which(uniResults$COURSE_YEAR == courseYear),]
+        for (questionnaire in unique(uniYearResults$CLEAN_QUESTNNR)) {
+          singleQuestionnaireResults <- uniYearResults[which(
+            uniYearResults$CLEAN_QUESTNNR == questionnaire),]
+          if (uni == TUM_NAME & courseYear != TUM_COMPLETE_YEAR) {
+            questionnaire <- "Q4'"
+          }
+          # Add one column with readable result string and one with JSON
+          QUESTION_NOT_ASKED <- "Question not asked"
+          currentResponses <- list()
+          for (response in singleQuestionnaireResults[[question$id]]) {
+            cleanResponse <- THIS_OPTION_DATA[which(
+                  THIS_OPTION_DATA$VAR == question$id &
+                  THIS_OPTION_DATA$RESPONSE == response), "CLEAN"]
+            if (length(cleanResponse) == 0) {
+              cleanResponse <- QUESTION_NOT_ASKED
+            }
+            if (cleanResponse %in% names(currentResponses)) {
+              currentResponses[[cleanResponse]][["count"]] <-
+                currentResponses[[cleanResponse]][["count"]] + 1
+            } else {
+              currentResponses[[cleanResponse]][["count"]] <- 1
+            }
+          }
+          if (length(names(currentResponses)) == 1 &
+              names(currentResponses)[1] == QUESTION_NOT_ASKED) {
+            next
+          }
+          responseStringList <- ""
+          for (cleanResponse in names(currentResponses)) {
+            responseCount <- currentResponses[[cleanResponse]][["count"]]
+            responseStringList <- c(responseStringList, paste0(cleanResponse, ": ", responseCount))
+          }
+          responseString <- paste(responseStringList, collapse = "\n")
+          
+          # Add variables to list
+          aggregatedData <- addListData(aggregatedData, "uni", uni)
+          aggregatedData <- addListData(aggregatedData, "course.year", courseYear)
+          aggregatedData <- addListData(aggregatedData, "questionnaire", questionnaire)
+          aggregatedData <- addListData(aggregatedData, "question.id", question$id)
+          aggregatedData <- addListData(aggregatedData, "question.text", getQuestionTitle(question))
+          aggregatedData <- addListData(aggregatedData, "responses", responseString)
+          aggregatedData <- addListData(aggregatedData, "responses.json", toJSON(currentResponses))
+        }
+      }
+    }
+  }
+  aggregatedData <- as.data.frame(aggregatedData)
+  write.csv(aggregatedData, AGGREGATED_DATA_PATH, row.names = FALSE)
+  return(aggregatedData)
+}
+AGGREGATED_DATA_PATH <- file.path(COMPLETE_RESULTS_DIRECTORY, "aggregated_data.csv")
+AGGREGATED_DATA <- runIfNotPresent(getAggregatedData, AGGREGATED_DATA_PATH, forceRun = FALSE, readOutput = read.csv)
+```
+
+The following table shows differences with _p_ < 0.1; only paired results from HPI are included and only binary results from the first HPI questionnaires:
+
+```{r evolution-table, echo=FALSE, results='asis', include=TRUE}
+getEvolutionTableData <- function() {
+  tableData <- EVOLUTION_STATS[which(
+  EVOLUTION_STATS$pValue != "—" &
+    EVOLUTION_STATS$pValue <= 0.1 &
+    !startsWith(EVOLUTION_STATS$questionTitle, "I want to (Q1, Q2) or did (Q3) ") & # redundant Q1-Q3
+    (EVOLUTION_STATS$uni != HPI_NAME | EVOLUTION_STATS$uni == HPI_NAME & EVOLUTION_STATS$isPaired) &
+    (EVOLUTION_STATS$year != HPI_FIRST_YEAR | EVOLUTION_STATS$year == HPI_FIRST_YEAR & EVOLUTION_STATS$isBinary)
+  ),]
+  write.csv(tableData, file.path(COMPLETE_RESULTS_DIRECTORY, "evolution_table.csv"), row.names = FALSE)
+  return(tableData)
+}
+
+printChangeCounts <- function(alpha = 0.05) {
+  changes <- list()
+  for (rowIndex in 1:nrow(EVOLUTION_TABLE_DATA)) {
+    currentData <- EVOLUTION_TABLE_DATA[rowIndex,]
+    if (currentData$pValue < alpha) {
+      change <- str_remove_all(currentData$comparison, "_HPI")
+      if (change %in% names(changes)) {
+        changes[[change]] <- changes[[change]] + 1
+      } else {
+        changes[[change]] <- 1
+      }
+    }
+  }
+  print(changes)
+} 
+
+EVOLUTION_TABLE_DATA <- getEvolutionTableData()
+renderTable(EVOLUTION_TABLE_DATA)
+printChangeCounts(alpha = 0.05)
+printChangeCounts(alpha = 0.1)
+```
+
+```{r hpi-2020-q4-english, include=TRUE}
+printEnglishTextsForHPI2020Q4 <- function() {
+  source("modules/data/load.R")
+  source("modules/data/questions.R")
+  translated <- FALSE
+  if (!translated) {
+    output_print("The English texts for the questionnaire that was accidentally exported in German are:")
+    questionData <- getQuestionData()
+    optionData <- getOptionData()
+    resultData <- getResultData()
+    relevantResultData <- resultData[which(
+      resultData$QUESTNNR == "Q4_HPI" & startsWith(resultData$STARTED, "2020")),]
+    questionIds <- getQuestionIds(relevantResultData)
+    for (questionId in questionIds) {
+      if (!all(is.na(relevantResultData[[questionId]]) | relevantResultData[[questionId]] == "")) {
+        currentQuestionData <- questionData[which(questionData$VAR == questionId),]
+        currentOptionData <- optionData[which(optionData$VAR == questionId),]
+        output_print(paste("ID:", questionId))
+        output_print(paste("Question:", currentQuestionData$QUESTION))
+        output_print(paste("Label:", currentQuestionData$LABEL))
+        output_print("Options:")
+        for (optionIndex in 1:nrow(currentOptionData)) {
+          output_print(currentOptionData[optionIndex, "MEANING"])
+        }
+      }
+    }
+  }
+}
+printEnglishTextsForHPI2020Q4()
+```

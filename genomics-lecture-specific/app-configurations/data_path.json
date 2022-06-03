@@ -1,0 +1,10 @@
+{
+  "path": "data/AllData",
+  "only-the-path-above": "is-used-by-code",
+  "below-you-can-backup-paths-that": "you-do-not-want-to-type-every-time",
+  "all-collected": "data/AllData",
+  "tum-Q1-Q4": "data/TUM_Q1-Q4",
+  "hpi-aypg-q1-q3": "data/AYPG/HPI_Q1-Q3",
+  "hpi-uyg": "data/UYG",
+  "all-first-analysis": "data/AYPG+TUM_Retro_Q1"
+}

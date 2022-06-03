@@ -1,0 +1,61 @@
+{
+  "makeQuestionIdsUnique": {
+    "Q402": {
+      "newQuestionId": "old_Q402",
+      "inputDirectories": ["data/AllData/InititalVersions"]
+    },
+    "Q403": {
+      "newQuestionId": "old_Q403",
+      "inputDirectories": ["data/AllData/InititalVersions"]
+    },
+    "Q404": {
+      "newQuestionId": "old_Q404",
+      "inputDirectories": ["data/AllData/InititalVersions"]
+    },
+    "Q405": {
+      "newQuestionId": "old_Q405",
+      "inputDirectories": ["data/AllData/InititalVersions"]
+    },
+    "Q407": {
+      "newQuestionId": "old_Q407",
+      "inputDirectories": ["data/AllData/InititalVersions"]
+    }
+  },
+  "normalizeQuestionIds": {
+    "QX02": ["T102", "old_Q402"],
+    "QX04": "old_Q403",
+    "QX05": ["T105", "Q203"],
+    "QX06": ["T106", "Q201"],
+    "QX08": "old_Q405",
+    "QX10": "Q204",
+    "QX07": [
+      "T107",
+      "Q414"
+    ],
+    "QX11": "old_Q407",
+    "QX12": "Q419",
+    "QX13": "Q420",
+    "QX14": "Q421",
+    "QX16": "Q412",
+    "QX15": "Q413",
+    "QX18": "Q417",
+    "QX17": "Q418",
+    "QX19": "Q415",
+    "Q102_04": "T103_03",
+    "Q102_05": "T103_04",
+    "Q102_06": "T103_05",
+    "Q102_07": "T103_06",
+    "Q102_08": "T103_07",
+    "Q102_09": "T103_08",
+    "Q102_10": "T103_09",
+    "Q102_11": "T103_10",
+    "Q102_12": "T103_11",
+    "Q102": ["T205", "T103", "old_Q404"],
+    "Q103": "T104",
+    "Q402": "Q408",
+    "Q403": "Q409",
+    "Q404": "Q410",
+    "Q405": "Q411"
+  },
+  "removeQuestionIds": ["Q302_01", "Q303_01", "Q407_01", "QX20_01", "Q416_01"]
+}

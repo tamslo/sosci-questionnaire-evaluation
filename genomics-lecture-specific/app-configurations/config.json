@@ -1,0 +1,323 @@
+{
+  "title": "AYPG Questionnaire Evaluation",
+  "hidden": {
+    "pages":["IO", "_ES", "RT", "OO", "_GC", "_MN", "_DU", "_DF", "_WG", "_RS"],
+    "questions": ["DF03", "RS03", "RS04", "DU12", "ES04", "ES03", "MN03", "_DU04", "_DU15", "_DU18"]
+  },
+  "showFollowUps": false,
+  "overrideImages": true,
+  "replacements": {
+    "titles": {
+      "It depends (on": "It depends on:",
+      "I prefer not to say (because": "I prefer not to say because:",
+      "Other": "Other:"
+    },
+    "labels": {
+      "It depends (on": "It depends",
+      "I prefer not to say (because": "I prefer not to say",
+      "nicht beantwortet": "Not answered",
+      "Ja": "Yes",
+      "I plan to further explore my genomic data beyond the course": "Yes",
+      "I want to receive my complete data, but I do not think I will look into it": "Only receive",
+      "ausgewählt": "Yes",
+      "nicht gewählt": "No",
+      "Checked": "Yes",
+      "Not checked": "No",
+      "Through the course I have gained a more positive opinion on genetic analysis": "More positive",
+      "Through the course I have become more critical about genetic analysis": "More negative"
+    },
+    "answers": {},
+    "pages": {
+      "IO": "Introduction",
+      "GC": "Before you start",
+      "MN": "Course motivation",
+      "ES": "Course expectiations",
+      "DU": "Data usage",
+      "DF": "Data usefulness",
+      "RS": "Genome analysis regulations",
+      "WG": "Whole genome sequencing",
+      "RT": "Retrospective",
+      "OO": "Outro"
+    }
+  },
+  "connectedQuestions": [
+    ["DU02", "DU14"],
+    ["DU04", "DU15"],
+    ["DU05", "DU16"],
+    ["DU06", "DU18"],
+    ["DF02", "DF03"]
+  ],
+  "valueMapping": {
+    "strong_agreement": 2,
+    "agreement": 1,
+    "neutral": 0,
+    "disagreement": -1,
+    "strong_disagreement": -2,
+    "other": null
+  },
+  "valuePrefixMapping": {
+    "other": ["It depends", "I don't know", "I prefer not to say", "Not answered", "I don't understand", "Question not asked"],
+    "strong_agreement": ["I strongly agree", "Definitely yes", "Yes", "Checked", "Absolutely necessary", "I plan to further explore my genomic data beyond the course", "More positive", "I want to participate in the study", "Option 1: I would like to analyze my own genome", "I wish to continue with the questionnaire"],
+    "agreement": ["I agree", "Probably yes", "Rather important"],
+    "neutral": ["Neutral", "I want to receive my complete data, but I do not think I will look into it", "Only receive"],
+    "disagreement": ["I disagree", "Probably no"],
+    "strong_disagreement": ["I strongly disagree", "Definitely no", "No", "More negative"]
+  },
+
+  "differentConfigsSavedForLater": {
+    "HPI_Q1-Q3": {
+      "title": "AYPG Questionnaire Evaluation",
+      "hidden": {
+        "pages": [
+          "IO",
+          "_ES",
+          "RT",
+          "OO",
+          "_GC",
+          "_MN",
+          "_DU",
+          "_DF",
+          "_WG",
+          "_RS"
+        ],
+        "questions": [
+          "DF03",
+          "RS03",
+          "RS04",
+          "DU12",
+          "ES04",
+          "ES03",
+          "MN03",
+          "_DU04",
+          "_DU15",
+          "_DU18"
+        ]
+      },
+      "showFollowUps": false,
+      "overrideImages": false,
+      "replacements": {
+        "titles": {
+          "It depends (on": "It depends on:",
+          "I prefer not to say (because": "I prefer not to say because:",
+          "Other": "Other:"
+        },
+        "labels": {
+          "It depends (on": "It depends",
+          "I prefer not to say (because": "I prefer not to say",
+          "nicht beantwortet": "Not answered"
+        },
+        "answers": {},
+        "pages": {
+          "IO": "Introduction",
+          "GC": "Before you start",
+          "MN": "Course motivation",
+          "ES": "Course expectiations",
+          "DU": "Data usage",
+          "DF": "Data usefulness",
+          "RS": "Genome analysis regulations",
+          "WG": "Whole genome sequencing",
+          "RT": "Retrospective",
+          "OO": "Outro"
+        }
+      },
+      "connectedQuestions": [
+        [
+          "DU02",
+          "DU14"
+        ],
+        [
+          "DU04",
+          "DU15"
+        ],
+        [
+          "DU05",
+          "DU16"
+        ],
+        [
+          "DU06",
+          "DU18"
+        ],
+        [
+          "DF02",
+          "DF03"
+        ]
+      ]
+    },
+    "HPI_Q4": {
+      "title": "Retrospective questionnaire (HPI)",
+      "hidden": {
+        "pages": [
+          "ST"
+        ],
+        "questions": [
+          "Q402"
+        ]
+      },
+      "showFollowUps": true,
+      "overrideImages": true,
+      "replacements": {
+        "answers": {},
+        "pages": {
+          "Q4": "Responses"
+        }
+      },
+      "connectedQuestions": []
+    },
+    "HPI_Q1-Q4": {
+      "title": "SoSci Questionnaire Evaluation",
+      "hidden": {
+        "pages": [],
+        "questions": [
+          "QX02"
+        ]
+      },
+      "showFollowUps": true,
+      "overrideImages": true,
+      "replacements": {
+        "titles": {},
+        "labels": {},
+        "answers": {},
+        "pages": {
+          "Q1": "",
+          "Q3": "",
+          "Q4": "",
+          "QX": ""
+        }
+      },
+      "makeQuestionIdsUnique": {},
+      "normalizeQuestionIds": {},
+      "connectedQuestions": [
+        [
+          "QX04",
+          "Q102",
+          "Q103",
+          "QX08",
+          "QX09",
+          "QX10",
+          "QX05",
+          "Q402",
+          "Q403"
+        ],
+        [
+          "QX06",
+          "Q404",
+          "Q405"
+        ],
+        [
+          "QX18",
+          "QX17"
+        ]
+      ]
+    },
+    "TUM_Retrospective": {
+      "title": "TUM Retrospective",
+      "hidden": {
+        "pages": [
+          "ST"
+        ],
+        "questions": [
+          "Q402"
+        ]
+      },
+      "showFollowUps": true,
+      "overrideImages": true,
+      "replacements": {
+        "answers": {},
+        "pages": {
+          "Q4": "Responses",
+          "T2": ""
+        }
+      },
+      "connectedQuestions": []
+    },
+    "TUM_Q1-Q4": {
+      "title": "SoSci Questionnaire Evaluation",
+      "hidden": {
+        "pages": [
+          "ol"
+        ],
+        "questions": [
+          "T102",
+          "old_Q402",
+          "QX02"
+        ]
+      },
+      "showFollowUps": true,
+      "overrideImages": true,
+      "replacements": {
+        "titles": {},
+        "labels": {},
+        "answers": {},
+        "pages": {
+          "T1": "",
+          "Q2": "",
+          "Q3": "",
+          "Q4": "",
+          "QX": ""
+        }
+      },
+      "makeQuestionIdsUnique": {
+        "Q402": {
+          "newQuestionId": "old_Q402",
+          "inputDirectories": [
+            "data/TUM_Q1",
+            "data/TUM_Q2",
+            "data/TUM_Q3"
+          ]
+        },
+        "Q405": {
+          "newQuestionId": "old_Q405",
+          "inputDirectories": [
+            "data/TUM_Q1",
+            "data/TUM_Q2",
+            "data/TUM_Q3"
+          ]
+        },
+        "Q407": {
+          "newQuestionId": "old_Q407",
+          "inputDirectories": [
+            "data/TUM_Q1",
+            "data/TUM_Q2",
+            "data/TUM_Q3"
+          ]
+        }
+      },
+      "normalizeQuestionIds": {
+        "QX08": "old_Q405",
+        "QX10": "Q204",
+        "Q203": "T105",
+        "QX07": [
+          "T107",
+          "Q414"
+        ],
+        "QX11": "old_Q407",
+        "QX12": "Q419",
+        "QX13": "Q420",
+        "QX14": "Q421",
+        "QX16": "Q412",
+        "QX15": "Q413",
+        "QX18": "Q417",
+        "QX17": "Q418"
+      },
+      "connectedQuestions": [
+        [
+          "T104",
+          "QX08",
+          "QX10",
+          "Q203",
+          "Q302",
+          "Q402",
+          "Q403",
+          "T106",
+          "Q201",
+          "Q404",
+          "Q405"
+        ],
+        [
+          "QX18",
+          "QX17"
+        ]
+      ]
+    }
+  }
+}

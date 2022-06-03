@@ -1,0 +1,35 @@
+{
+  "title": "SoSci Questionnaire Evaluation",
+  "hidden": {
+    "pages":[],
+    "questions": []
+  },
+  "showFollowUps": true,
+  "overrideImages": true,
+  "replacements": {
+    "titles": {},
+    "labels": {},
+    "answers": {},
+    "pages": {}
+  },
+  "connectedQuestions": [],
+  "valueMapping": {
+    "strong_agreement": 2,
+    "agreement": 1,
+    "neutral": 0,
+    "disagreement": -1,
+    "strong_disagreement": -2,
+    "other": null
+  },
+  "valuePrefixMapping": {
+    "other": ["It depends", "I don't know", "I prefer not to say", "Not answered", "I don't understand"],
+    "strong_agreement": ["I strongly agree", "Definitely yes", "Yes", "Checked", "Absolutely necessary"],
+    "agreement": ["I agree", "Probably yes", "Rather important"],
+    "neutral": ["Neutral"],
+    "disagreement": ["I disagree", "Probably no"],
+    "strong_disagreement": ["I strongly disagree", "Definitely no", "No"]
+  },
+
+
+  "differentConfigsSavedForLater": {}
+}

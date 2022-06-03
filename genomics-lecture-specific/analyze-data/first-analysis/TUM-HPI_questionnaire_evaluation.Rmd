@@ -1,0 +1,386 @@
+---
+title: "TUM/HPI Questionnaire Evaluation"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "../../..")
+knitr::opts_chunk$set(echo = TRUE)
+```
+\renewcommand{\arraystretch}{1.5}
+
+```{r test-data-path, include=FALSE}
+source("modules/dataPath.R")
+dataPath <- getDataPath()
+if (dataPath != "data/AYPG+TUM_Retro_Q1") {
+  stop("[ERROR] Set data path to 'data/AYPG+TUM_Retro_Q1'!")
+}
+```
+
+```{r print-png-definition, echo=FALSE}
+source("genomics-lecture-specific/analyze-data/first-analysis/scripts/stratify.R")
+library(png)
+printPng <- function(fileName, basePath = NULL) {
+  library(rjson)
+  if (is.null(basePath)) {
+    basePath <- getResultDirectory()
+  }
+  filePath <- file.path(basePath, fileName)
+  grid::grid.raster(readPNG(filePath))
+}
+```
+
+```{r prepare, include=FALSE}
+forceStratificationOutput <- FALSE
+forceEvolutionOutput <- FALSE
+```
+
+```{r compute-stratification-results, include=FALSE}
+# setwd("../../..") # For single chunk execution
+source("genomics-lecture-specific/analyze-data/first-analysis/scripts/stratify.R")
+if (!file.exists(file.path(getResultDirectory(), "stratification_stats.csv")) | forceStratificationOutput) {
+  computeStratificationResults()
+}
+```
+
+In the Analyze Your Personal Genome (AYPG) course at HPI, Potsdam, and the Genomic Medicine course at TU Munich (TUM), different questionnaires were conducted, with which we aimed to answer the following questions:
+
+1. (How) does learning about genome analysis change the students’ attitudes towards personal genotyping?
+2. Is it useful for the learning experience that students work with their own genomes?
+3. Do attitudes towards personal genotyping differ between student populations?
+
+These questions shall be answered in the following sections.
+
+## Methods
+
+At HPI, four questionnaires were conducted, at TUM two questionnaires, as displayed in Figure \ref{fig:questionnaire-timeline}.
+
+```{r questionnaire-timeline, fig.cap="Timeline of course questionnaires. Questionnaires that were not conducted at time of evaluation and that therefore are not included are greyed out.", fig.align = 'center', echo=FALSE}
+printPng("questionnaire-timeline.png", basePath = "genomics-lecture-specific/analyze-data/first-analysis")
+```
+
+Statistical analyses were executed in R. Different analyses were applied to ordinal data in the first three questionnaires conducted at HPI and to nominal data in the condensed questionnaires, as explained below. 
+
+_Please note that the sample sizes are rather small and therefore the statistical tests provide some guidance but the findings are not necessarily representative._ Additionally, P values were not corrected for multiple testing since with small sample sizes and many comparisons we do not expect to achieve significant adjusted P values.
+
+### Ordinal Data
+
+Wilcoxon's Signed Rank (`wilcox.test`) test was used to assess significance of difference between ordinal values in paired responses across different time points. Strong agreement was mapped to a value of 2, agreement to 1, a neutral answer to 0, disagreement to -1, and strong disagreement to -2. To compare this scale with only yes or no answers, "yes" was treated as strong agreement and "no" as strong disagreement.
+
+For effect size, the _r_ value was used, which was calculated and interpreted with the `rstatix::wilcox_effsize` function.
+
+### Nominal Data
+
+Fisher's exact test (`fisher.test`) was used to assess significance of difference between nominal values in small independent student groups.
+
+For effect size, Cramer's V statistic (`lsr::cramersV`) was computed. We did not use odds ratio as a measure for effect size, since it cannot be applied to questions with more than two answers. The effect size was interpreted according to an interpretation guide ([```https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5426219/table/T2/```](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5426219/table/T2/)); the interpretation corresponding to the nearest threshold was applied.
+
+## Results
+
+The participation numbers for questionnaires are displayed in Table \ref{tab:questionnaire-participation}.
+
+```{r prepare-participation-table, include=FALSE}
+# setwd("../../..") # For single chunk execution
+sapply(list.files("modules", recursive = TRUE, full.names = TRUE), source)
+sapply(list.files("scripts", recursive = TRUE, full.names = TRUE), source)
+resultData <- getResultData()
+# Exclude answers of students who did not want to participate
+resultData <- resultData[which(
+  (is.na(resultData$IO03) | resultData$IO03 != 2) &
+    (is.na(resultData$T102) | resultData$T102 != 2) &
+    (is.na(resultData$Q402) | resultData$Q402 != 2)),]
+questionnaires <- c()
+participantNumbers <- c()
+for (questionnaire in unique(resultData$QUESTNNR)) {
+  questionnaires <- c(questionnaires, questionnaire)
+  participantNumber <- length(which(resultData == questionnaire))
+  participantNumbers <- c(participantNumbers, participantNumber)
+}
+hpiQuestionnares <- questionnaires[which(!startsWith(questionnaires, "TUM_"))]
+for (index in 2:length(hpiQuestionnares)) {
+  combination <- hpiQuestionnares[1:index]
+  questionnaires <- c(questionnaires, paste(combination, collapse = ", "))
+  participationNumber <- length(getCompleteParticipants(resultData, combination))
+  participantNumbers <- c(participantNumbers, participationNumber)
+}
+tableData <- data.frame("Questionnaires" = questionnaires,
+                        "Participants" = participantNumbers)
+```
+```{r participation-table, echo=FALSE, results='asis'}
+knitr::kable(tableData, row.names = FALSE, format = "latex", booktabs = TRUE,
+             caption = "Participant numbers per questionnaire or questionnaire combinations (based on pseudonmys per student, only used for HPI). \\label{tab:questionnaire-participation}") %>%
+  kableExtra::column_spec(1, width = "4cm") %>%
+  kableExtra::column_spec(2, width = "3cm")
+```
+
+Results regarding the comparison of nominal data between student populations are stored and can be reviewed in `stratification_stats.csv`, for the comparison of ordinal data between time points in `evolution_stats.csv`.
+
+### (How) does learning about genome analysis change the students’ attitudes towards personal genotyping?
+
+HPI students (7 of 10, 70 %) rather changed their attitude than TUM students (23 of 47, 49 %), as depicted in Figure \ref{fig:attitude-change}. The difference between HPI and TUM students is not significant (P=.077, large effect).
+
+If the attitude changes when learning about genome analysis, students overall tend to become more cautious: 7 of 7 HPI students (100 %) and 16 of 23 (70 %) TUM students stated that they became more critical (see Figure \ref{fig:attitude-direction}). We understand _critical_ in an overall sense, describing not only subjective analyses that should be conducted and with whom to share genomic data, but also general attitudes towards validity and interpretability of genomic testing or direct-to-consumer testing.
+
+```{r attitude-change, fig.cap="Student's attitude change.", fig.align = 'center', echo=FALSE}
+printPng("Q417_by_uni.png")
+```
+```{r attitude-direction, fig.cap="Direction of students' attitude change.", fig.align = 'center', echo=FALSE}
+printPng("Q418_by_uni.png")
+```
+
+```{r calculate-evolution-stats, include=FALSE}
+# setwd("../../..") # For single chunk execution
+source("genomics-lecture-specific/analyze-data/first-analysis/scripts/analyzeEvolution.R")
+source("modules/statistics/utils.R")
+source("assets/stratification/utils.R")
+source("assets/sankeyPlots/createCombinedSankeyPlots.R")
+outputFilePath <- file.path(getResultDirectory(), "evolution_stats.csv")
+if (!file.exists(outputFilePath) || forceEvolutionOutput) {
+  evolutionSpecification <- getEvolutionSpecification()
+  collectedStatistics <- NULL
+  collectedStatisticsIndex <- 1
+  for (topic in names(evolutionSpecification)) {
+    if (topic == "titles") {
+      next
+    }
+    topicSpecification <- evolutionSpecification[[topic]]
+    topicTitle <- evolutionSpecification[["titles"]][[topic]]
+    print(paste("Creating sankey plots for ", topic, "...", sep = ""))
+    createCombinedSankeyPlots(topicSpecification, topic, title = topicTitle)
+    print(paste("Creating statistics for ", topic, "...", sep = ""))
+    for (questionDescription in names(topicSpecification)) {
+      topicText <- topicSpecification[[questionDescription]][["title"]]
+      questionList <- topicSpecification[[questionDescription]][["question.list"]]
+      alpha <- 0.05
+      statistics <- testComparisonSignificances(questionList, alpha = alpha, filterParticipants =  TRUE)
+      comparisonStatistics <- NULL
+      for (comparison in names(statistics)) {
+        comparisonStatistics <- rbind(
+          comparisonStatistics,
+          data.frame("topic" = topic,
+                     "question.description" = questionDescription,
+                     "question.text" = topicText,
+                     "comparison" = comparison,
+                     "p.value" = statistics[[comparison]][["pValue"]],
+                     "unadjusted.is.significant" = statistics[[comparison]][["pValue"]] < alpha,
+                     "adjusted.p.over.comparison.tests" = NA,
+                     "adjusted.is.significant" = NA,
+                     "effect.size" = statistics[[comparison]][["effectSize"]],
+                     "effect.size.interpretation" = statistics[[comparison]][["effectSizeInterpretation"]],
+                     "test.warning" = statistics[[comparison]][["testWarning"]],
+                     "values" = statistics[[comparison]][["values"]],
+                     row.names = collectedStatisticsIndex
+          )
+        )
+        collectedStatisticsIndex = collectedStatisticsIndex + 1
+      }
+      collectedStatistics <- rbind(collectedStatistics, adjustPValues(comparisonStatistics))
+    }
+  }
+  collectedStatistics <- collectedStatistics[order(collectedStatistics$p.value),]
+  adjusted.p.over.all.tests <- p.adjust(collectedStatistics$p.value, method = "fdr")
+  collectedStatistics$adjusted.p.over.all.tests <- adjusted.p.over.all.tests
+  write.csv(collectedStatistics, outputFilePath, row.names = FALSE)
+}
+```
+
+The impression that students become more cautious is affirmed when following responses in pre-, mid-, and end-course questionnaires at HPI, as displayed in Figure \ref{fig:evolution-plots}. 
+
+```{r combine-evolution-plots, include=FALSE}
+# setwd("../../..") # For single chunk execution
+source("assets/sankeyPlots/createCombinedSankeyPlots.R")
+source("assets/stratification/utils.R")
+getPngPath <- function(fileName, single = FALSE) {
+  if (single) {
+    directoryPath <- getSingleSankeyResultDirectory()
+  } else {
+    directoryPath <- getSankeyResultDirectory()
+  }
+  return(file.path(directoryPath, paste(fileName, ".png", sep = "")))
+}
+outputPath <- getPngPath("evolution_significant")
+otherOutputPath <- getPngPath("evolution_interesting")
+collectedStatistics <- read.csv(file.path(getResultDirectory(), "evolution_stats.csv"))
+significantResults <- unique(collectedStatistics[which(collectedStatistics$unadjusted.is.significant), "question.description"])
+interestingResults <- unique(collectedStatistics[which(collectedStatistics$unadjusted.is.significant | collectedStatistics$effect.size.interpretation == "large"), "question.description"])
+siginficantPlotPaths <- sapply(significantResults, function(plotName) { return(getPngPath(plotName, single = TRUE)) })
+interestingPlotPaths <- sapply(interestingResults, function(plotName) { return(getPngPath(plotName, single = TRUE)) })
+combinePlots(outputPath, siginficantPlotPaths, maxCols = 2, singlePlotWidth = 600, singlePlotHeight = 300)
+combinePlots(otherOutputPath, interestingPlotPaths, maxCols = 2, singlePlotWidth = 600, singlePlotHeight = 300)
+```
+```{r evolution-plots, fig.cap="HPI students' attitude change during the course.", fig.align = 'center', echo=FALSE}
+# printPng("evolution_interesting.png", basePath = getSankeyResultDirectory())
+printPng("evolution_significant.png", basePath = getSankeyResultDirectory())
+```
+
+During the course, students get less positive regarding analyses to conduct with their complete data, learning health information from genomic data, and the question whether genetic testing should be allowed without genetic counseling. This could indicate that students rather understand the complexity that comes with genomic data analysis.
+
+### Is it useful for the learning experience that students work with their own genomes?
+
+Most students, 9 of 10 (90 %) from HPI and 43 of 47 (91 %) from TUM, reported that working with their own genomes was useful for the learning experience (see Figure \ref{fig:learning-experience}). Additionally, 100 % of HPI students and 98 % of TUM students would recommend to keep personal genotyping as part of the lecture (Figure \ref{fig:next-courses})), and the personal genotyping experience motivated them to enroll for the course (see Table \ref{tab:motivation}).
+
+```{r learning-experience, fig.cap="Students' assessment of the impact of personal genotyping on the learning experience.", fig.align = 'center', echo=FALSE}
+printPng("Q412_by_uni.png")
+```
+```{r next-courses, fig.cap="Students' recommendations to keep personal genotyping as part of the lecture.", fig.align = 'center', echo=FALSE}
+printPng("Q413_by_uni.png")
+```
+```{r motivation-table, echo=FALSE, results='asis'}
+# setwd("../../..") # For single chunk execution
+source("genomics-lecture-specific/analyze-data/first-analysis/scripts/analyzeMotivation.R")
+data <- getMotivationTableData(getMotivationDataSpecification())
+knitr::kable(data, row.names = FALSE, format = "latex", booktabs = TRUE,
+             caption = "Amount of students that consider specific lecture parts as a motivation to enroll, ordered by mean amounts. According to this, receiving or analyzing personal genomic data is considered a high motivation for students to enroll for the course (with the second-highest mean motivation score). \\label{tab:motivation}") %>%
+  kableExtra::column_spec(1, width = "5cm") %>%
+  kableExtra::column_spec(2:length(data), width = "1.3cm")
+```
+
+### Do attitudes towards personal genotyping differ between student populations?
+
+Overall, the attitudes of HPI and TUM students are quite similar; TUM students consider the treatment of ethical aspects in the course as more important than HPI students. At TUM, students with Genetic and Genomic Counseling background seem to be more cautious when it comes to working with their own data. Moreover, non-medical students rather think that a course like Genomic Medicine should be obligatory in medical studies than medical students. These findings are further elaborated below.
+
+#### Comparisons
+
+To answer this question, we compared differences in questionnaire answers between different groups, as listed in Table \ref{tab:comparisons}.
+
+```{r group-number-table, echo=FALSE, results='asis'}
+# setwd("../../..") # For single chunk execution
+source("genomics-lecture-specific/analyze-data/first-analysis/scripts/stratify.R")
+comparisonSpecification <- getComparisonSpecification()
+comparisons <- c()
+groups <- c()
+participantNumbers <- c()
+for (comparison in names(comparisonSpecification)) {
+  for (group in names(comparisonSpecification[[comparison]][["populations"]])) {
+    participantNumber <- nrow(comparisonSpecification[[comparison]][["populations"]][[group]])
+    comparisons <- c(comparisons, comparison)
+    groups <- c(groups, group)
+    participantNumbers <- c(participantNumbers, participantNumber)
+  }
+}
+data <- data.frame("Comparison" = comparisons, "Groups" = groups, "Participant number" = participantNumbers)
+knitr::kable(data, row.names = FALSE, format = "latex", booktabs = TRUE,
+             caption = "Comparisons with their regarding groups and cardinalities. \\label{tab:comparisons}") %>%
+  kableExtra::column_spec(1:2, width = "5cm") %>%
+  kableExtra::column_spec(3, width = "3cm") %>%
+  kableExtra::column_spec(1, monospace = TRUE)
+```
+
+For questions regarding the motivation to enroll for the course, the current pre-course questionnaire for TUM was also included, called _TUM Q1_. To differentiate different TUM questionnaires, the group names for the `motivation_stratification` comparison differ as follows:
+
+* TUM → _TUM Retro_
+* TUM: Medicine → _TUM Retro (med. stud.)_
+* TUM: Not medicine → _TUM Retro (n. med. stud.)_
+* HPI → _HPI Q4_
+
+For each comparison, all pairwise combinations were tested for significance and effect size, as described in the Methods section above.
+
+#### Findings
+
+11 comparisons out of 327 total comparisons yield significant differences, however, according to unadjusted P values:
+
+As visible in Figure \ref{fig:motivations}, **HPI Q4 students were rather motivated by receiving or analyzing their own data than TUM Retro (n. med. stud.)** (P=.024, large effect). Moreover, **HPI Q4 students were rather motivated by learning about pharmacogenomics than TUM Retro students, especially than TUM Retro (n. med. stud.)** (P=.012, medium effect for TUM Retro; P=.032, medium effect for TUM Retro (med. stud.); P=.009, large effect for for TUM Retro (n. med. stud.)). No significant differences in motivations are present between TUM Q1 students and other students.
+
+```{r motivations, fig.cap="Students' reported motivations to enroll for the course. The displayed information is the same as in the table showing students' motivation above.", fig.align = 'center', echo=FALSE}
+printPng("Q404_T103_T205_motivation_stratification.png")
+```
+
+**At TUM, Genetic and Genomic Counseling students rather did not collect the password for their complete data, compared to medical students and students with other educational background** (Medicine P=.015, medium effect; other educational background P=.018, large effect, see Figure \ref{fig:password}).
+
+```{r password, fig.cap="Students who reported to have collected their passwords.", fig.align = 'center', echo=FALSE}
+printPng("Q408_tum_by_education.png")
+```
+
+**Whether an attitude change regarding personal genotyping happens, seems to depend on the course content, represented by different course years at TUM**; in winter term 2018/19 6 of 6 TUM students reported that their attitude changed, in other course years rather less than half of students reported an attitude change (SoSe 2017 vs. WiSe 2018/19 P=.015, large effect; WiSe 2017/18 vs. WiSe 2018/19 P=.024, large effect; WiSe 2018/19 vs. WiSe 2019/20 P=.028, large effect; see Figure \ref{fig:tum-attitute-change}).
+
+```{r tum-attitute-change, fig.cap="TUM student's reported attitude changes per course year.", fig.align = 'center', echo=FALSE}
+printPng("Q417_tum_by_year.png")
+```
+
+**TUM students consider the treatment of ethical aspects in the course as more important than HPI students** (P=.018, large effect, see Figure \ref{fig:ethics}).
+
+```{r ethics, fig.cap="Student's percieved importance of covering ethical aspects.", fig.align = 'center', echo=FALSE}
+printPng("Q420_by_uni.png")
+```
+
+Lastly, **non-medical TUM students rather thought that a similar course should be obligatory in medical studies at universities than medical TUM students** (P=.039, medium effect, see Figure \ref{fig:obligatory}).
+
+```{r obligatory, fig.cap="TUM students' thoughts on whether a similar course should be obligatory in medical studies.", fig.align = 'center', echo=FALSE}
+printPng("Q421_tum_medicine_vs_other.png")
+```
+
+#### Further results
+
+Apart from the significant differences, **whether students participated in personal genotyping does not differ largely between student populations**; the largest differences exist between different course years (medium effects for SoSe 2017 vs. WiSe 2019/20, WiSe 2018/19 vs. WiSe 2019/20, and WiSe 2017/18 vs. WiSe 2019/20; also see Figures \ref{fig:pgt-by-uni}, \ref{fig:pgt-tum-education}, and \ref{fig:pgt-tum-year}).
+
+```{r pgt-by-uni, fig.cap="Student's reported participation in personal genotyping by university.", fig.align = 'center', echo=FALSE}
+printPng("Q405_by_uni.png")
+```
+```{r pgt-tum-education, fig.cap="TUM students' reported participation in personal genotyping by educational background.", fig.align = 'center', echo=FALSE}
+printPng("Q405_tum_by_education.png")
+```
+```{r pgt-tum-year, fig.cap="TUM students' reported participation in personal genotyping by course year.", fig.align = 'center', echo=FALSE}
+printPng("Q405_tum_by_year.png")
+```
+
+An interesting additional observation illustrated in Figures \ref{fig:pgt-strangers} and \ref{fig:pgt-family-friends} is that **HPI students would rather recommend personal genotyping to family or friends who have not taken the course than allow personal genotyping without genetic counseling by a medical professional**, which might imply that it is assumed that persons close to them have a better understanding of genotyping results than strangers.
+
+```{r pgt-strangers, fig.cap="Students' answers regarding the question whether genotyping should be allowed without genetic counseling.", fig.align = 'center', echo=FALSE}
+ printPng("Q414_by_uni.png")
+```
+```{r pgt-family-friends, fig.cap="Students' answers regarding the question whether they would recommend genotyping to family or friends.", fig.align = 'center', echo=FALSE}
+ printPng("Q419_by_uni.png")
+```
+
+While 32 % (15 of 47) TUM students answered both questions with "yes", HPI students were more reluctant regarding personal genotyping without counseling (20 % answered "yes", 2 of 10) and more positive regarding family and friends receiving personal genotyping (60 % answered "yes", 6 of 10).
+
+```{r print-stats-definition, include=FALSE}
+# setwd("../../..") # For single chunk execution
+source("genomics-lecture-specific/analyze-data/first-analysis/scripts/stratify.R")
+printStats <- function(valueMatrix) {
+  stats <- getStatistics(valueMatrix)
+  print("P value:")
+  print(stats[1])
+  print("Effect size interpretation:")
+  print(stats[6])
+}
+```
+
+```{r hpi-friends-vs-strangers, include=FALSE}
+valueMatrix <- data.frame(
+  "population" = c(rep("No counceling", 10), rep("Recommend friends", 10)),
+  "value" = c(rep("Yes", 2), rep("No", 8), rep("Yes", 6), rep("No", 4))
+)
+printStats(valueMatrix)
+```
+
+However, neither the difference between HPI and TUM answers nor between HPI answers for the two questions are significant (P=.706, small effect for TUM and HPI answers regarding genotyping without counseling; P=.148, small effect for TUM and HPI answers regarding recommending genotyping to family or friends; P=.170, medium effect for HPI answers regarding genotyping without counseling and recommending genotyping to family or friends).
+
+```{r differing-answers, include=FALSE}
+# setwd("../../..") # For single chunk execution
+source("genomics-lecture-specific/analyze-data/first-analysis/scripts/stratify.R")
+getDifferingResults <- function(results, uniName) {
+  uniResults <- results[["by_uni"]][["populations"]][[uniName]]
+  friendsResults <- uniResults$Q419
+  strangersResults <- uniResults$Q414
+  # 1: yes; 2: no
+  return(c(
+    rep("Same answer", length(which(friendsResults == strangersResults))),
+    rep("Rather relatives or friends", length(which(friendsResults == 1 & strangersResults == 2))),
+    rep("Rather strangers", length(which(friendsResults == 2 & strangersResults == 1)))
+  ))
+}
+results <- getComparisonSpecification()
+hpiDifferences <- getDifferingResults(results, "HPI")
+tumDifferences <- getDifferingResults(results, "TUM")
+valueMatrix <- data.frame(
+  "population" = c(rep("HPI", length(hpiDifferences)), rep("TUM", length(tumDifferences))),
+  "value" = c(hpiDifferences, tumDifferences)
+)
+printStats(valueMatrix)
+```
+
+Moreover, we compared responses of participants regarding the two questions: at HPI, 4 students who think personal genotyping should not be allowed without genetic counseling would recommend personal genotyping to relatives or friends; at TUM, 9 students reported that personal genotyping should not be allowed without genetic counseling but that they would recommend it to relatives or friends, and 9 students were the opposite opinion (P=.188, medium effect for the comparison of answer changes between HPI and TUM).
+
+Overall, the observation remains interesting, but to draw conclusions from it this discrepancy would need to be further evaluated with students.
+

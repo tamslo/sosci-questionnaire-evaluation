@@ -1,0 +1,45 @@
+{
+  "makeQuestionIdsUnique": {
+    "Q402": {
+      "newQuestionId": "old_Q402",
+      "inputDirectories": [
+        "data/TUM_Q1",
+        "data/TUM_Q2",
+        "data/TUM_Q3"
+      ]
+    },
+    "Q405": {
+      "newQuestionId": "old_Q405",
+      "inputDirectories": [
+        "data/TUM_Q1",
+        "data/TUM_Q2",
+        "data/TUM_Q3"
+      ]
+    },
+    "Q407": {
+      "newQuestionId": "old_Q407",
+      "inputDirectories": [
+        "data/TUM_Q1",
+        "data/TUM_Q2",
+        "data/TUM_Q3"
+      ]
+    }
+  },
+  "normalizeQuestionIds": {
+    "QX08": "old_Q405",
+    "QX10": "Q204",
+    "Q203": "T105",
+    "QX07": [
+      "T107",
+      "Q414"
+    ],
+    "QX11": "old_Q407",
+    "QX12": "Q419",
+    "QX13": "Q420",
+    "QX14": "Q421",
+    "QX16": "Q412",
+    "QX15": "Q413",
+    "QX18": "Q417",
+    "QX17": "Q418"
+  }
+}
