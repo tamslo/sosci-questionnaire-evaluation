@@ -15,9 +15,13 @@ loadData <- function(inputDirectory, filePrefix) {
   return(data)
 }
 
+getCombinationConfigPath <- function(outputDirectory) {
+  return(file.path(outputDirectory, "combination_config.json"))
+}
+
 getCombinationConfig <- function(outputDirectory) {
   config = DEFAULT_CONFIG
-  configPath <- file.path(outputDirectory, "combination_config.json")
+  configPath <- getCombinationConfigPath(outputDirectory)
   if (file.exists(configPath)) {
     config <- fromJSON(file = configPath)
   }

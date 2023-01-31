@@ -17,13 +17,18 @@ library(rjson)
 
 getCompleteDataPath <- function() {
   source("modules/dataPath.R", local = TRUE)
+  source("assets/combineResultData.R", local = TRUE)
   dataPath <- getDataPath()
   completeDataPath <- "data/AllData"
   if (dataPath != completeDataPath) {
     stop("[ERROR] Set data path to 'data/AllData'")
   }
   if (!dir.exists(completeDataPath)) {
-    stop("[ERROR] Expecting 'data/AllData' to be present (with combination config)")
+    stop("[ERROR] Expecting 'data/AllData' to be present")
+  }
+  combinationConfigPath <- getCombinationConfigPath(completeDataPath)
+  if (!file.exists(combinationConfigPath)) {
+    stop("[ERROR] Expecting 'data/AllData' to have combination config")
   }
   return(completeDataPath)
 }
