@@ -1,5 +1,6 @@
 #sapply(list.files("modules/data", recursive = TRUE, full.names = TRUE), source)
 library(rstatix)
+library(coin) # needed for effect size calculation
 source("modules/config.R", local = TRUE)
 
 getValueGroup <- function(option) {
