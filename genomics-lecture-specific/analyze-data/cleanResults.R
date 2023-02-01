@@ -1,6 +1,8 @@
 # Cleaning methods for results data
 # Regarding default question IDs normalized data is assumed
 
+library(stringr)
+
 withConsent <- function(results, consentQuestion = "QX02") {
   noAnswer <- 2
   questionnairesWithExternalConsent <- c("Q1", "Q2", "Q3")

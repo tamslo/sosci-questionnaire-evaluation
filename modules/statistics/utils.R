@@ -1,4 +1,5 @@
 #sapply(list.files("modules/data", recursive = TRUE, full.names = TRUE), source)
+library(rstatix)
 source("modules/config.R", local = TRUE)
 
 getValueGroup <- function(option) {

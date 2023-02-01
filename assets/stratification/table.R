@@ -1,5 +1,7 @@
 source("modules/data/load.R", local = TRUE)
 
+library(stringr)
+
 getUniData <- function(uniKey, comparisonSpecification) {
   fullUniData <- comparisonSpecification[["by_uni"]][["populations"]][[uniKey]]
   filteredUniData <- fullUniData[,colSums(is.na(fullUniData) | fullUniData == "") < nrow(fullUniData)]
