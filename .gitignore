@@ -3,6 +3,11 @@ results/
 www/images
 config.json
 data_path.json
+
+scripts/adaptResultData.R
+scripts/adaptQuestionData.R
+scripts/adaptOptionData.R
+
 *.pdf
 *.tex
 

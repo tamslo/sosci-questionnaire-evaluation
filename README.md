@@ -23,7 +23,7 @@ The code that is specific to the lectures is separated in the `genomics-lecture-
 * If needed, create the data directory you entered in the `data_path.json`
 * Copy your CSV files (`data_*.csv`, `values_*.csv`, and `variables_*.csv`) to the data directory
 * Copy or rename `example.config.json` to `<data_path>/config.json` and adapt if needed (see [Configuration](#configuration))
-* In case you need to make adaptions to your data you can do that using the files in the `scripts` folder
+* Copy or rename `scripts/example.*.R` to `scripts/*.R`; in case you need to make adaptions to your data you can do that by adapting the files in the `scripts` folder (the functions will be called upon each data loading from CSV files)
 
 ### Execution
 
