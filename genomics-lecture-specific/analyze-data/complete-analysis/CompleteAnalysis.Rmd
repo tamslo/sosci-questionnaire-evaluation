@@ -47,12 +47,12 @@ HPI_FIRST_YEAR <- "SoSe 2020"
 HPI_SECOND_YEAR <- "SoSe 2021"
 TUM_COMPLETE_YEAR <- "WiSe 2020/21"
 
-runIfNotPresent <- function(runFunction, outputPath, runParameters = NA, forceRun = FALSE, readOutput = NA) {
+runIfNotPresent <- function(runFunction, outputPath, runParameters = NULL, forceRun = FALSE, readOutput = NA) {
   if (!file.exists(outputPath) | forceRun) {
     if (file.exists(outputPath) & forceRun) {
       print(paste0("[INFO] Forcing execution of ", substitute(runFunction), " (overwriting ", outputPath, ")"))
     }
-    if (is.na(runParameters)) {
+    if (is.null(runParameters)) {
       return(runFunction())
     } else {
       return(runFunction(runParameters))
@@ -397,7 +397,7 @@ getMotivationStats <- function() {
   comparisonSpecification[["by_questionnaire"]][["populations"]] <- populations
   motivation_stats <- runComparisons(comparisonSpecification, combinedOutputFileName = MOTIVATON_STATS_NAME,
                                      combinedOutputDirectory = MOTIVATON_STATS_DIRECTORY)
-
+  
   ## Manually analyze the differences between long Q1 and short Q4 motivations
   oldMotivationResults <- getMotivationResults(COMPLETE_RESULTS, OLD_MOTIVATION_RESULT_IDS)
   oldMotivationQuestions <- COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$id %in% OLD_MOTIVATION_RESULT_IDS),]
@@ -1498,4 +1498,18 @@ printEnglishTextsForHPI2020Q4 <- function() {
   }
 }
 printEnglishTextsForHPI2020Q4()
+```
+
+```{r review-comment-mcnemar-vs-??, include=FALSE}
+# TODO
+```
+
+```{r review-comment-better-evolution, include=FALSE}
+# TODO
+```
+
+```{r review-comment-open-ended-answers, include=FALSE}
+open_ended_questions <- COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$type == "OPEN"),]
+# Why no open in short-version??
+# TODO
 ```
