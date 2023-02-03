@@ -47,6 +47,16 @@ HPI_FIRST_YEAR <- "SoSe 2020"
 HPI_SECOND_YEAR <- "SoSe 2021"
 TUM_COMPLETE_YEAR <- "WiSe 2020/21"
 
+getCleanQuestionnaire <- function(questionnaire) {
+  if (!str_detect(questionnaire, fixed("_"))) {
+     return(questionnaire)
+    } else if (questionnaire == "TUM_Retrospective") {
+      return("Q4")
+    } else { # questionnaire name with uni name and underscore
+     return(str_remove(str_remove(str_remove(questionnaire, TUM_NAME), HPI_NAME), "_"))
+    }
+}
+
 runIfNotPresent <- function(runFunction, outputPath, runParameters = NULL, forceRun = FALSE, readOutput = NA) {
   if (!file.exists(outputPath) | forceRun) {
     if (file.exists(outputPath) & forceRun) {
@@ -144,14 +154,7 @@ combineCompleteResultData <- function() {
       UNI <- c(UNI, HPI_NAME)
     }
     # Get CLEAN_QUESTNNR
-    if (!str_detect(questionnaire, fixed("_"))) {
-      CLEAN_QUESTNNR <- c(CLEAN_QUESTNNR, questionnaire)
-    } else if (questionnaire == "TUM_Retrospective") {
-      CLEAN_QUESTNNR <- c(CLEAN_QUESTNNR, "Q4")
-    } else { # questionnaire name with uni name and underscore
-      CLEAN_QUESTNNR <- c(CLEAN_QUESTNNR,
-                          str_remove(str_remove(str_remove(questionnaire, TUM_NAME), HPI_NAME), "_"))
-    }
+    CLEAN_QUESTNNR <- c(CLEAN_QUESTNNR, getCleanQuestionnaire(questionnaire))
     # Get COURSE_YEAR
     if (questionnaire == "TUM_Retrospective") {
       if (is.na(row$T201)) {
@@ -799,14 +802,14 @@ getEvolutionStats <- function() {
         uni <- plotParameters[[questionName]][["uni"]]
         year <- plotParameters[[questionName]][["year"]]
         questionnaires <- names(plotParameters[[questionName]][["question.list"]])
-        responses <- NULL
+        responseRows <- NULL
         for (questionnaire in names(plotParameters[[questionName]][["question.list"]])) {
           questionId <- plotParameters[[questionName]][["question.list"]][[questionnaire]]
           questionResponses <- results[
             which(results$UNI == uni &
                     results$COURSE_YEAR == year &
                     results$QUESTNNR == questionnaire),
-            c("CLEAN_QUESTNNR", questionId)]
+            c("QUESTNNR", "CLEAN_QUESTNNR", questionId)]
           for (rowIndex in 1:nrow(questionResponses)) {
             questionResponse <- questionResponses[rowIndex, questionId]
             if (!is.na(questionResponse)) {
@@ -819,17 +822,15 @@ getEvolutionStats <- function() {
               questionResponses[rowIndex, questionId] <- responseMeaning
             }
           }
-          colnames(questionResponses) <- c("CLEAN_QUESTNNR", questionName)
-          responses <- rbind(responses, questionResponses)
+          colnames(questionResponses) <- c("QUESTNNR", "CLEAN_QUESTNNR", questionName)
+          responseRows <- rbind(responseRows, questionResponses)
         }
-        responses <- table(responses[[questionName]], responses$CLEAN_QUESTNNR)
+        responses <- table(responseRows[[questionName]], responseRows$CLEAN_QUESTNNR)
         
         # Get statistics
         comparisons <- getPairwiseComparisons(colnames(responses))
         statsStrings <- c()
         for (comparisonName in names(comparisons)) {
-          firstQuestionnaire <- comparisons[[comparisonName]][1]
-          secondQuestionnaire <- comparisons[[comparisonName]][2]
           population <- c()
           value <- c()
           for (questionnaire in colnames(responses)) {
@@ -854,7 +855,17 @@ getEvolutionStats <- function() {
           values <- paste(valueStrings, collapse = "\n")
           valueMatrix <- data.frame(population, value)
           stats <- getStatistics(valueMatrix)
-          comparisonStatistics[[paste(questionId, comparisonName)]] <- c(title, comparisonName, stats, values)
+          firstCleanQuestionnaire <- comparisons[[comparisonName]][1]
+          secondCleanQuestionnaire <- comparisons[[comparisonName]][2]
+          firstQuestionnaire <- unique(responseRows$QUESTNNR[which(responseRows$CLEAN_QUESTNNR == firstCleanQuestionnaire)])
+          secondQuestionnaire <- unique(responseRows$QUESTNNR[which(responseRows$CLEAN_QUESTNNR == secondCleanQuestionnaire)])
+          if (length(firstQuestionnaire) != 1 || length(secondQuestionnaire) != 1) {
+            browser()
+            stop("Questionnaire not unique!")
+          }
+          firstQuestionId <- plotParameters[[questionName]][["question.list"]][[firstQuestionnaire]]
+          secondQuestionId <- plotParameters[[questionName]][["question.list"]][[secondQuestionnaire]]
+          comparisonStatistics[[paste(questionId, comparisonName)]] <- c(title, comparisonName, firstQuestionId, secondQuestionId, stats, values)
           pValue <- formatNumericValue(as.double(stats[2]))
           if (pValue <= 0.05) {
             output_print(paste("[INFO] Significant change (unpaired):", uni, year, questionId, comparisonName))
@@ -949,7 +960,7 @@ getEvolutionStats <- function() {
         createPdf(renderStackedBarplot, list("responses" = responses, "stats.strings" = statsStrings), pdfPath)
       }
       comparisonStatistics <- as.data.frame(do.call(rbind, comparisonStatistics))
-      colnames(comparisonStatistics) <- c("question.text", "comparison", statisticColumnNames, "values")
+      colnames(comparisonStatistics) <- c("question.text", "comparison", "first.question.id", "second.question.id", statisticColumnNames, "values")
       write.csv(comparisonStatistics, parameters[["output.path"]], row.names = FALSE)
       combinePlots(plotPaths, file.path(outputDirectory, parameters[["output.name"]]))
       return(comparisonStatistics)
@@ -1221,7 +1232,7 @@ getEvolutionStats <- function() {
       "year" = TUM_COMPLETE_YEAR,
       "paired" = FALSE,
       "binary" = FALSE,
-      "force.run" = FALSE,
+      "force.run" = TRUE,
       "get.specific.parameters" = getPlotParametersForCompleteTumYear,
       "output.postfix" = NA)
   )
@@ -1230,12 +1241,17 @@ getEvolutionStats <- function() {
   uni <- c()
   year <- c()
   comparison <- c()
+  firstQuestionId <- c()
+  secondQuestionId <- c()
   isPaired <- c()
   isBinary <- c()
   pValue <- c()
   effectSize <- c()
   effectSizeInterpretation <- c()
   values <- c()
+  alternativePValue <- c()
+  alternativeEffectSize <- c()
+  alternativeEffectSizeInterpretation <- c()
   for (statsKey in names(evolutionStatsParams)) {
     params <- evolutionStatsParams[[statsKey]]
     currentUni <- params[["uni"]]
@@ -1256,23 +1272,33 @@ getEvolutionStats <- function() {
     if (paired) {
       questionTitle <- c(questionTitle, stats[["titles"]])
       comparison <- c(comparison, stats[["comparisons"]])
+      firstQuestionId <- c(firstQuestionId, stats[["first_question_ids"]])
+      secondQuestionId <- c(secondQuestionId, stats[["second_question_ids"]])
       pValue <- c(pValue, stats[["p_values"]])
       effectSize <- c(effectSize, stats[["effect_values"]])
       effectSizeInterpretation <- c(effectSizeInterpretation, stats[["effect_interpretation_values"]])
+      alternativePValue <- c(alternativePValue, stats[["alternative_p_values"]])
+      alternativeEffectSize <- c(alternativeEffectSize, stats[["alternative_effect_values"]])
+      alternativeEffectSizeInterpretation <- c(alternativeEffectSizeInterpretation, stats[["alternative_effect_interpretation_values"]])
     } else {
       questionTitle <- c(questionTitle, stats[["question.text"]])
       comparison <- c(comparison, stats[["comparison"]])
+      firstQuestionId <- c(firstQuestionId, stats[["first.question.id"]])
+      secondQuestionId <- c(secondQuestionId, stats[["second.question.id"]])
       pValue <- c(pValue, stats[["p.value"]])
       effectSize <- c(effectSize, stats[["effect.size"]])
       effectSizeInterpretation <- c(effectSizeInterpretation, stats[["strict.effect.size.interpretation"]])
+      alternativePValue <- c(alternativePValue, rep("–", nrow(stats)))
+      alternativeEffectSize <- c(alternativeEffectSize, rep("–", nrow(stats)))
+      alternativeEffectSizeInterpretation <- c(alternativeEffectSizeInterpretation, rep("–", nrow(stats)))
     }
   }
-  evolution_stats <- data.frame(questionTitle, uni, year, comparison, isPaired, isBinary, pValue, effectSize, effectSizeInterpretation, values)
+  evolution_stats <- data.frame(questionTitle, uni, year, comparison, firstQuestionId, secondQuestionId, isPaired, isBinary, pValue, effectSize, effectSizeInterpretation, values, alternativePValue, alternativeEffectSize, alternativeEffectSizeInterpretation)
   write.csv(evolution_stats, EVOLUTION_STATS_PATH, row.names = FALSE)
   return(evolution_stats)
 }
 EVOLUTION_STATS_PATH <- file.path(COMPLETE_RESULTS_DIRECTORY,"evolution_stats.csv")
-EVOLUTION_STATS <- runIfNotPresent(getEvolutionStats, EVOLUTION_STATS_PATH, forceRun = FALSE, readOutput = read.csv)
+EVOLUTION_STATS <- runIfNotPresent(getEvolutionStats, EVOLUTION_STATS_PATH, forceRun = TRUE, readOutput = read.csv)
 
 ```
 
@@ -1436,13 +1462,13 @@ The following table shows differences with _p_ < 0.1; only paired results from H
 
 ```{r evolution-table, echo=FALSE, results='asis', include=TRUE}
 getEvolutionTableData <- function() {
-  tableData <- EVOLUTION_STATS[which(
+  tableData <- subset(EVOLUTION_STATS[which(
   EVOLUTION_STATS$pValue != "—" &
     EVOLUTION_STATS$pValue <= 0.1 &
     !startsWith(EVOLUTION_STATS$questionTitle, "I want to (Q1, Q2) or did (Q3) ") & # redundant Q1-Q3
     (EVOLUTION_STATS$uni != HPI_NAME | EVOLUTION_STATS$uni == HPI_NAME & EVOLUTION_STATS$isPaired) &
     (EVOLUTION_STATS$year != HPI_FIRST_YEAR | EVOLUTION_STATS$year == HPI_FIRST_YEAR & EVOLUTION_STATS$isBinary)
-  ),]
+  ),], select = -c(firstQuestionId, secondQuestionId, alternativePValue, alternativeEffectSize, alternativeEffectSizeInterpretation))
   write.csv(tableData, file.path(COMPLETE_RESULTS_DIRECTORY, "evolution_table.csv"), row.names = FALSE)
   return(tableData)
 }
@@ -1500,8 +1526,22 @@ printEnglishTextsForHPI2020Q4 <- function() {
 printEnglishTextsForHPI2020Q4()
 ```
 
-```{r review-comment-mcnemar-vs-??, include=FALSE}
-# TODO
+```{r review-comment-mcnemar-vs-wilcoxon, include=FALSE}
+# Get (truly) binary questions
+option_counts <- as.data.frame(table(COMPLETE_OPTIONS$VAR))
+names(option_counts) <- c("VAR", "COUNT")
+binary_question_ids <- as.vector(option_counts$VAR[which(option_counts$COUNT == 2)])
+print(binary_question_ids)
+for (question_id in unique(COMPLETE_OPTIONS$VAR)) {
+  options <- COMPLETE_OPTIONS[which(COMPLETE_OPTIONS$VAR == question_id),]$MEANING
+  if (("Yes" %in% options && "No" %in% options) || ("Ja" %in% options && "Nein" %in% options)) {
+    binary_question_ids <- c(binary_question_ids, question_id)
+  }
+}
+binary_evolutions <- EVOLUTION_STATS[which(EVOLUTION_STATS$firstQuestionId %in% binary_question_ids & EVOLUTION_STATS$secondQuestionId %in% binary_question_ids),]
+# TODO: not all values for McNemar present (need better check!)
+# TODO: double-check test values and inform group
+# TODO: maybe adapt main binary paired test to be McNemar (better condition what is binary!)
 ```
 
 ```{r review-comment-better-evolution, include=FALSE}

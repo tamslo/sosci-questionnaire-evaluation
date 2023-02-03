@@ -241,11 +241,18 @@ create_sanky_plot <- function(plot_parameters) {
   
   titles <- c()
   comparisons <- c()
+  first_question_ids <- c()
+  second_question_ids <- c()
   p_values <- c()
   effect_values <- c()
   effect_interpretation_values <- c()
+  # Alternatively run McNemar (only for binary questions)
+  alternative_p_values <- c()
+  alternative_effect_values <- c()
+  alternative_effect_interpretation_values <- c()
   values <- c()
   test_warnings <- c()
+  alternative_test_warnings <- c()
   questionnaire_comparisons <- getPairwiseComparisons(ordered_questionnaires)
   for (comparison in names(questionnaire_comparisons)) {
     first_questionnaire <- questionnaire_comparisons[[comparison]][1]
@@ -254,7 +261,8 @@ create_sanky_plot <- function(plot_parameters) {
     second_responses <- get_answer_values(migration_data, second_questionnaire)
     values <- c(values, paste0(first_questionnaire, ": ", paste(first_responses, collapse = ", "), "; ",
                                second_questionnaire, ": ", paste(second_responses, collapse = ", ")))
-    if (!all(is.na(first_responses)) & !all(is.na(second_responses))) {
+    areCurrentResponsesPresent <- !all(is.na(first_responses)) & !all(is.na(second_responses))
+    if (areCurrentResponsesPresent) {
       test_results <- runPairedWilcoxonTest(first_responses, second_responses)
       p_value <- test_results[["pValue"]]
       effect_value <- test_results[["effectSize"]]
@@ -266,12 +274,31 @@ create_sanky_plot <- function(plot_parameters) {
       effect_interpretation_value <- "—"
       test_warning <- "—"
     }
+    areCurrentResponsesBinary <- areResponsesBinary(c(first_responses, second_responses))
+    if (areCurrentResponsesPresent && areCurrentResponsesBinary) {
+      alternative_test_results <- runMcNemarTest(first_responses, second_responses)
+      alternative_p_value <- alternative_test_results[["pValue"]]
+      alternative_effect_value <- alternative_test_results[["effectSize"]]
+      alternative_effect_interpretation_value <- as.character(alternative_test_results[["effectSizeInterpretation"]])
+      alternative_test_warning <- alternative_test_results[["testWarning"]]
+    } else {
+      alternative_p_value <- "—"
+      alternative_effect_value <- "—"
+      alternative_effect_interpretation_value <- "—"
+      alternative_test_warning <- "—"
+    }
     titles <- c(titles, title)
     comparisons <- c(comparisons, comparison)
+    first_question_ids <- c(first_question_ids, question_list[[first_questionnaire]])
+    second_question_ids <- c(second_question_ids, question_list[[second_questionnaire]])
     p_values <- c(p_values, p_value)
     effect_values <- c(effect_values, effect_value)
     effect_interpretation_values <- c(effect_interpretation_values, effect_interpretation_value)
     test_warnings <- c(test_warnings, test_warning)
+    alternative_p_values <- c(alternative_p_values,  alternative_p_value)
+    alternative_effect_values <- c(alternative_effect_values,  alternative_effect_value)
+    alternative_effect_interpretation_values <- c(alternative_effect_interpretation_values, alternative_effect_interpretation_value)
+    alternative_test_warnings <- c(alternative_test_warnings, alternative_test_warning)
   }
   q_values <- p.adjust(p_values, method = "fdr")
   formatted_p_values <- c()
@@ -289,7 +316,11 @@ create_sanky_plot <- function(plot_parameters) {
     formatted_effect_values <- c(formatted_effect_values, format_value_information(comparison, effect_value, digits = 3, comment = effect_interpretation_comment))
   }
   
-  comparison_results <- data.frame(titles, comparisons, p_values, effect_values, effect_interpretation_values, values, test_warnings, q_values)
+  comparison_results <- data.frame(
+    titles, comparisons, first_question_ids, second_question_ids, p_values, effect_values,
+    effect_interpretation_values, values, test_warnings, q_values,
+    alternative_p_values, alternative_effect_values, alternative_effect_interpretation_values,
+    alternative_test_warnings)
   write.csv(comparison_results, get_file_path(plot_path, "csv"), row.names = FALSE)
 
   font_size <- 18

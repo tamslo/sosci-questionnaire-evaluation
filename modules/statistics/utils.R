@@ -95,6 +95,77 @@ runPairedWilcoxonTest <- function(firstResponses, secondResponses, alpha = 0.05)
   return(testResults)
 }
 
+areResponsesBinary <- function(responses) {
+  # Receives mapped response values (numeric or NA)
+  # Ignores NA for binary assessment
+  # Returns true if responses are <= 2
+  clean_responses <- responses[which(!is.na(responses))]
+  return(length(unique(clean_responses)) <= 2)
+}
+
+getNaIndices <- function(responses) {
+  return(which(is.na(responses)))
+}
+
+cleanNaResponses <- function(responses, naIndices) {
+  if (length(naIndices) > 0) {
+    return(responses[-naIndices])
+  } else {
+    return(responses)
+  }
+}
+
+runMcNemarTest <- function(firstResponses, secondResponses) {
+  # Filter NA responses
+  naIndices <- unique(c(getNaIndices(firstResponses), getNaIndices(secondResponses)))
+  cleanFirstResponses <- cleanNaResponses(firstResponses, naIndices)
+  cleanSecondResponses <- cleanNaResponses(secondResponses, naIndices)
+  # Ensure square table
+  allLevels <- sort(unique(c(cleanFirstResponses, cleanSecondResponses)))
+  if (length(allLevels) == 1) {
+    allLevels <- c(allLevels, "empty-level")
+  }
+  cleanFirstResponses <- factor(cleanFirstResponses, levels = allLevels)
+  cleanSecondResponses <- factor(cleanSecondResponses, levels = allLevels)
+  # Build contingency table
+  responsePairCounts <- as.data.frame(table(cleanFirstResponses, cleanSecondResponses))
+  contingencyTable <- matrix(responsePairCounts$Freq, nrow = 2)
+  if (nrow(contingencyTable) != 2 || ncol(contingencyTable) != 2) {
+    browser()
+    print.table(contingencyTable)
+    stop(paste0("Contingency table (printed above) should be 2x2!"))
+  }
+  # Run test
+  significanceTest <- mcnemar.test(contingencyTable)
+  testWarning <- tryCatch({
+    mcnemar.test(contingencyTable)
+  }, warning = function(warningObject) {
+    return(conditionMessage(warningObject))
+  }, finally = function() {})
+  if (typeof(testWarning) != "character") {
+    testWarning <- NA
+  }
+  if (!is.na(significanceTest$p.value)) {
+    oddsRatio <- OddsRatio(contingencyTable, conf.level = 0.95)
+    effectSize <- oddsRatio[1]
+    effectSizeInterpretation <- paste0("Confidence intervals: ", oddsRatio[2], "–", oddsRatio[3])
+  } else {
+    effectSize <- NA
+    effectSizeInterpretation <- NA
+  }
+  testResults <- list(
+    "pValue" = significanceTest$p.value,
+    "testWarning" = testWarning,
+    "effectSize" = effectSize,
+    "effectSizeInterpretation" = effectSizeInterpretation
+  )
+  return(testResults)
+}
+
+getComparisonName <- function(firstQuestionnaire, secondQuestionnaire) {
+  return(paste(firstQuestionnaire, "<>", secondQuestionnaire))
+}
+
 getPairwiseComparisons <- function(questionnaires) {
   comparisons <- list()
   for (firstQuestionnaireIndex in 1:length(questionnaires)) {
@@ -102,7 +173,7 @@ getPairwiseComparisons <- function(questionnaires) {
     if (firstQuestionnaireIndex < length(questionnaires)) {
       for (secondQuestionnaireIndex in (firstQuestionnaireIndex + 1):length(questionnaires)) {
         secondQuestionnaire <- questionnaires[secondQuestionnaireIndex]
-        comparisonName <- paste(firstQuestionnaire, "<>", secondQuestionnaire)
+        comparisonName <- getComparisonName(firstQuestionnaire, secondQuestionnaire)
         comparisons[[comparisonName]] <- c(firstQuestionnaire, secondQuestionnaire)
       }
     }
