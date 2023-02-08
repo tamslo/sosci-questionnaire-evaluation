@@ -1249,12 +1249,12 @@ getEvolutionStats <- function() {
   isPaired <- c()
   isBinary <- c()
   pValue <- c()
-  mainTest <- c()
+  testMethod <- c()
   effectSize <- c()
   effectSizeInterpretation <- c()
   values <- c()
   alternativePValue <- c()
-  alternativeTest <- c()
+  alternativeTestMethod <- c()
   alternativeEffectSize <- c()
   alternativeEffectSizeInterpretation <- c()
   for (statsKey in names(evolutionStatsParams)) {
@@ -1280,11 +1280,11 @@ getEvolutionStats <- function() {
       firstQuestionId <- c(firstQuestionId, stats[["first_question_ids"]])
       secondQuestionId <- c(secondQuestionId, stats[["second_question_ids"]])
       pValue <- c(pValue, stats[["p_values"]])
-      mainTest <- c(mainTest, stats[["test_methods"]])
+      testMethod <- c(testMethod, stats[["test_methods"]])
       effectSize <- c(effectSize, stats[["effect_values"]])
       effectSizeInterpretation <- c(effectSizeInterpretation, stats[["effect_interpretation_values"]])
       alternativePValue <- c(alternativePValue, stats[["other_binary_p_values"]])
-      alternativeTest <- c(alternativeTest, stats[["other_binary_test_methods"]])
+      alternativeTestMethod <- c(alternativeTestMethod, stats[["other_binary_test_methods"]])
       alternativeEffectSize <- c(alternativeEffectSize, stats[["other_binary_effect_values"]])
       alternativeEffectSizeInterpretation <- c(alternativeEffectSizeInterpretation, stats[["other_binary_effect_interpretation_values"]])
     } else {
@@ -1293,16 +1293,17 @@ getEvolutionStats <- function() {
       firstQuestionId <- c(firstQuestionId, stats[["first.question.id"]])
       secondQuestionId <- c(secondQuestionId, stats[["second.question.id"]])
       pValue <- c(pValue, stats[["p.value"]])
-      mainTest <- c(mainTest, stats[["significance.test"]])
+      testMethod <- c(testMethod, stats[["significance.test"]])
       effectSize <- c(effectSize, stats[["effect.size"]])
       effectSizeInterpretation <- c(effectSizeInterpretation, stats[["strict.effect.size.interpretation"]])
       alternativePValue <- c(alternativePValue, rep("–", nrow(stats)))
-      alternativeTest <- c(alternativeTest, rep("–", nrow(stats)))
+      alternativeTestMethod <- c(alternativeTestMethod, rep("–", nrow(stats)))
       alternativeEffectSize <- c(alternativeEffectSize, rep("–", nrow(stats)))
       alternativeEffectSizeInterpretation <- c(alternativeEffectSizeInterpretation, rep("–", nrow(stats)))
+      values <- str_replace(values, "\n", "; ")
     }
   }
-  evolution_stats <- data.frame(questionTitle, uni, year, comparison, firstQuestionId, secondQuestionId, isPaired, isBinary, pValue, mainTest, effectSize, effectSizeInterpretation, values, alternativePValue, alternativeTest, alternativeEffectSize, alternativeEffectSizeInterpretation)
+  evolution_stats <- data.frame(questionTitle, uni, year, comparison, firstQuestionId, secondQuestionId, isPaired, isBinary, pValue, testMethod, effectSize, effectSizeInterpretation, values, alternativePValue, alternativeTestMethod, alternativeEffectSize, alternativeEffectSizeInterpretation)
   write.csv(evolution_stats, EVOLUTION_STATS_PATH, row.names = FALSE)
   return(evolution_stats)
 }
@@ -1467,17 +1468,18 @@ AGGREGATED_DATA_PATH <- file.path(COMPLETE_RESULTS_DIRECTORY, "aggregated_data.c
 AGGREGATED_DATA <- runIfNotPresent(getAggregatedData, AGGREGATED_DATA_PATH, forceRun = FALSE, readOutput = read.csv)
 ```
 
-The following table shows differences with _p_ < 0.1; only paired results from HPI are included and only binary results from the first HPI questionnaires:
+The following table shows differences with _p_ <= 0.1; only paired results from HPI are included and only binary results from the first HPI questionnaires:
 
 ```{r evolution-table, echo=FALSE, results='asis', include=TRUE}
 getEvolutionTableData <- function() {
+  EVOLUTION_SUPPLEMENT_THRESHOLD <- 0.1
   tableData <- subset(EVOLUTION_STATS[which(
   EVOLUTION_STATS$pValue != "–" &
-    EVOLUTION_STATS$pValue <= 0.1 &
+    EVOLUTION_STATS$pValue <= EVOLUTION_SUPPLEMENT_THRESHOLD &
     !startsWith(EVOLUTION_STATS$questionTitle, "I want to (Q1, Q2) or did (Q3) ") & # redundant Q1-Q3
     (EVOLUTION_STATS$uni != HPI_NAME | EVOLUTION_STATS$uni == HPI_NAME & EVOLUTION_STATS$isPaired) &
     (EVOLUTION_STATS$year != HPI_FIRST_YEAR | EVOLUTION_STATS$year == HPI_FIRST_YEAR & EVOLUTION_STATS$isBinary)
-  ),], select = -c(firstQuestionId, secondQuestionId, alternativePValue, alternativeEffectSize, alternativeEffectSizeInterpretation))
+  ),], select = -c(firstQuestionId, secondQuestionId, alternativePValue, alternativeEffectSize, alternativeEffectSizeInterpretation, alternativeTestMethod))
   write.csv(tableData, file.path(COMPLETE_RESULTS_DIRECTORY, "evolution_table.csv"), row.names = FALSE)
   return(tableData)
 }
@@ -1550,6 +1552,10 @@ binary_evolutions$pValueDiff <- ifelse(
   abs(as.numeric(binary_evolutions$pValue) - as.numeric(binary_evolutions$alternativePValue)),
   NaN)
 binary_evolutions <- binary_evolutions[order(binary_evolutions$pValueDiff),]
+binary_evolutions$newInSupplement <- binary_evolutions$pValue <= EVOLUTION_SUPPLEMENT_THRESHOLD &
+  binary_evolutions$alternativePValue > EVOLUTION_SUPPLEMENT_THRESHOLD
+binary_evolutions$removedFromSupplement <- binary_evolutions$pValue > EVOLUTION_SUPPLEMENT_THRESHOLD &
+  binary_evolutions$alternativePValue <= EVOLUTION_SUPPLEMENT_THRESHOLD
 ```
 
 ```{r review-comment-better-evolution, include=FALSE}

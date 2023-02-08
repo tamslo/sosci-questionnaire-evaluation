@@ -84,7 +84,7 @@ runPairedWilcoxonTest <- function(firstResponses, secondResponses, alpha = 0.05)
     effectSizeInterpretation <- NA
   } else {
     effectSizeValue <- effectSize$effsize
-    effectSizeInterpretation <- effectSize$magnitude
+    effectSizeInterpretation <- as.character(effectSize$magnitude)
   }
   testResults <- list(
     "pValue" = significanceTest$p.value,
