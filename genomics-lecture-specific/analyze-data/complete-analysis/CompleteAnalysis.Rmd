@@ -776,12 +776,15 @@ getEvolutionStats <- function() {
     createSankeysForUniAndYear <- function(parameters) {
       results <- parameters[["results"]]
       questions <- parameters[["questions"]]
+      options <- parameters[["options"]]
       uni <- parameters[["uni"]]
       year <- parameters[["year"]]
       binary <- parameters[["binary"]]
       plotParameters <- parameters[["plot.parameters"]]
       createCombinedSankeyPlots(plotParameters, parameters[["output.name"]],
-                                addSubfigureKey = FALSE, binary = binary)
+                                addSubfigureKey = FALSE, binary = binary,
+                                results = results, options = options,
+                                questions = questions)
       return(read.csv(parameters[["output.path"]])) 
     }
     
@@ -860,7 +863,6 @@ getEvolutionStats <- function() {
           firstQuestionnaire <- unique(responseRows$QUESTNNR[which(responseRows$CLEAN_QUESTNNR == firstCleanQuestionnaire)])
           secondQuestionnaire <- unique(responseRows$QUESTNNR[which(responseRows$CLEAN_QUESTNNR == secondCleanQuestionnaire)])
           if (length(firstQuestionnaire) != 1 || length(secondQuestionnaire) != 1) {
-            browser()
             stop("Questionnaire not unique!")
           }
           firstQuestionId <- plotParameters[[questionName]][["question.list"]][[firstQuestionnaire]]
@@ -1001,6 +1003,7 @@ getEvolutionStats <- function() {
     runParameters <- list(
       "results" = COMPLETE_RESULTS,
       "questions" = COMPLETE_QUESTIONS,
+      "options" = COMPLETE_OPTIONS,
       "uni" = uni,
       "year" = year,
       "plot.parameters" = plotParameters,
@@ -1232,7 +1235,7 @@ getEvolutionStats <- function() {
       "year" = TUM_COMPLETE_YEAR,
       "paired" = FALSE,
       "binary" = FALSE,
-      "force.run" = TRUE,
+      "force.run" = FALSE,
       "get.specific.parameters" = getPlotParametersForCompleteTumYear,
       "output.postfix" = NA)
   )
@@ -1298,7 +1301,7 @@ getEvolutionStats <- function() {
   return(evolution_stats)
 }
 EVOLUTION_STATS_PATH <- file.path(COMPLETE_RESULTS_DIRECTORY,"evolution_stats.csv")
-EVOLUTION_STATS <- runIfNotPresent(getEvolutionStats, EVOLUTION_STATS_PATH, forceRun = TRUE, readOutput = read.csv)
+EVOLUTION_STATS <- runIfNotPresent(getEvolutionStats, EVOLUTION_STATS_PATH, forceRun = FALSE, readOutput = read.csv)
 
 ```
 
@@ -1463,7 +1466,7 @@ The following table shows differences with _p_ < 0.1; only paired results from H
 ```{r evolution-table, echo=FALSE, results='asis', include=TRUE}
 getEvolutionTableData <- function() {
   tableData <- subset(EVOLUTION_STATS[which(
-  EVOLUTION_STATS$pValue != "—" &
+  EVOLUTION_STATS$pValue != "–" &
     EVOLUTION_STATS$pValue <= 0.1 &
     !startsWith(EVOLUTION_STATS$questionTitle, "I want to (Q1, Q2) or did (Q3) ") & # redundant Q1-Q3
     (EVOLUTION_STATS$uni != HPI_NAME | EVOLUTION_STATS$uni == HPI_NAME & EVOLUTION_STATS$isPaired) &
@@ -1528,20 +1531,20 @@ printEnglishTextsForHPI2020Q4()
 
 ```{r review-comment-mcnemar-vs-wilcoxon, include=FALSE}
 # Get (truly) binary questions
-option_counts <- as.data.frame(table(COMPLETE_OPTIONS$VAR))
-names(option_counts) <- c("VAR", "COUNT")
-binary_question_ids <- as.vector(option_counts$VAR[which(option_counts$COUNT == 2)])
-print(binary_question_ids)
-for (question_id in unique(COMPLETE_OPTIONS$VAR)) {
-  options <- COMPLETE_OPTIONS[which(COMPLETE_OPTIONS$VAR == question_id),]$MEANING
-  if (("Yes" %in% options && "No" %in% options) || ("Ja" %in% options && "Nein" %in% options)) {
-    binary_question_ids <- c(binary_question_ids, question_id)
-  }
+source("modules/statistics/utils.R", local = TRUE)
+binary_question_ids <- getBinaryQuestionIds(COMPLETE_OPTIONS)
+binary_evolutions <- EVOLUTION_STATS[which(EVOLUTION_STATS$firstQuestionId %in% binary_question_ids & EVOLUTION_STATS$secondQuestionId %in% binary_question_ids & EVOLUTION_STATS$isPaired),]
+is.numeric.itemwise <- function(list) {
+  return(!is.na(as.numeric(list)))
 }
-binary_evolutions <- EVOLUTION_STATS[which(EVOLUTION_STATS$firstQuestionId %in% binary_question_ids & EVOLUTION_STATS$secondQuestionId %in% binary_question_ids),]
-# TODO: not all values for McNemar present (need better check!)
-# TODO: double-check test values and inform group
-# TODO: maybe adapt main binary paired test to be McNemar (better condition what is binary!)
+binary_evolutions$hasBothPValues <- is.numeric.itemwise(binary_evolutions$pValue) & is.numeric.itemwise(binary_evolutions$alternativePValue)
+binary_evolutions$pValueDiff <- ifelse(
+  binary_evolutions$hasBothPValues,
+  abs(as.numeric(binary_evolutions$pValue) - as.numeric(binary_evolutions$alternativePValue)),
+  NaN)
+binary_evolutions <- binary_evolutions[order(binary_evolutions$pValueDiff),]
+View(binary_evolutions[which(binary_evolutions$pValueDiff > 0),])
+# TODO: Use McNemar as main test (maybe explicitly main p value with string which test and additionally McNemar and Wilcoxon)
 ```
 
 ```{r review-comment-better-evolution, include=FALSE}

@@ -51,10 +51,21 @@ create_sanky_plot <- function(plot_parameters) {
     target_questionnaire <- names(question_list)[index + 1]
     migration_list[[index]] <- c(source_questionnaire, target_questionnaire)
   }
-  
-  results <- getResultData()
-  options <- getOptionData()
-  questions <- getQuestions()
+
+  results <- plot_parameters[["results"]]
+  if (is.null(results)) {
+    results <- getResultData()
+  }
+
+  options <- plot_parameters[["options"]]
+  if (is.null(options)) {
+    options <- getOptionData()
+  }
+
+  questions <- plot_parameters[["questions"]]
+  if (is.null(questions)) {
+    questions <- getQuestions()
+  }
 
   questionnaires <- names(question_list)
   if (!is.null(uni)) {
@@ -257,6 +268,8 @@ create_sanky_plot <- function(plot_parameters) {
   for (comparison in names(questionnaire_comparisons)) {
     first_questionnaire <- questionnaire_comparisons[[comparison]][1]
     second_questionnaire <- questionnaire_comparisons[[comparison]][2]
+    first_question_id <- question_list[[first_questionnaire]]
+    second_question_id <- question_list[[second_questionnaire]]
     first_responses <- get_answer_values(migration_data, first_questionnaire)
     second_responses <- get_answer_values(migration_data, second_questionnaire)
     values <- c(values, paste0(first_questionnaire, ": ", paste(first_responses, collapse = ", "), "; ",
@@ -269,28 +282,28 @@ create_sanky_plot <- function(plot_parameters) {
       effect_interpretation_value <- as.character(test_results[["effectSizeInterpretation"]])
       test_warning <- test_results[["testWarning"]]
     } else {
-      p_value <- "—"
-      effect_value <- "—"
-      effect_interpretation_value <- "—"
-      test_warning <- "—"
+      p_value <- "–"
+      effect_value <- "–"
+      effect_interpretation_value <- "–"
+      test_warning <- "–"
     }
-    areCurrentResponsesBinary <- areResponsesBinary(c(first_responses, second_responses))
-    if (areCurrentResponsesPresent && areCurrentResponsesBinary) {
+    isCurrentComparisonBinary <- isComparisonBinary(options, first_question_id, second_question_id)
+    if (areCurrentResponsesPresent && isCurrentComparisonBinary) {
       alternative_test_results <- runMcNemarTest(first_responses, second_responses)
       alternative_p_value <- alternative_test_results[["pValue"]]
       alternative_effect_value <- alternative_test_results[["effectSize"]]
       alternative_effect_interpretation_value <- as.character(alternative_test_results[["effectSizeInterpretation"]])
       alternative_test_warning <- alternative_test_results[["testWarning"]]
     } else {
-      alternative_p_value <- "—"
-      alternative_effect_value <- "—"
-      alternative_effect_interpretation_value <- "—"
-      alternative_test_warning <- "—"
+      alternative_p_value <- "–"
+      alternative_effect_value <- "–"
+      alternative_effect_interpretation_value <- "–"
+      alternative_test_warning <- "–"
     }
     titles <- c(titles, title)
     comparisons <- c(comparisons, comparison)
-    first_question_ids <- c(first_question_ids, question_list[[first_questionnaire]])
-    second_question_ids <- c(second_question_ids, question_list[[second_questionnaire]])
+    first_question_ids <- c(first_question_ids, first_question_id)
+    second_question_ids <- c(second_question_ids, second_question_id)
     p_values <- c(p_values, p_value)
     effect_values <- c(effect_values, effect_value)
     effect_interpretation_values <- c(effect_interpretation_values, effect_interpretation_value)

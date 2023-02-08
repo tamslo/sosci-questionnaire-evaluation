@@ -95,31 +95,40 @@ runPairedWilcoxonTest <- function(firstResponses, secondResponses, alpha = 0.05)
   return(testResults)
 }
 
-areResponsesBinary <- function(responses) {
-  # Receives mapped response values (numeric or NA)
-  # Ignores NA for binary assessment
-  # Returns true if responses are <= 2
-  clean_responses <- responses[which(!is.na(responses))]
-  return(length(unique(clean_responses)) <= 2)
-}
-
-getNaIndices <- function(responses) {
-  return(which(is.na(responses)))
-}
-
-cleanNaResponses <- function(responses, naIndices) {
-  if (length(naIndices) > 0) {
-    return(responses[-naIndices])
-  } else {
-    return(responses)
+getBinaryQuestionIds <- function(options) {
+  option_counts <- as.data.frame(table(options$VAR))
+  names(option_counts) <- c("VAR", "COUNT")
+  binary_question_ids <- as.vector(option_counts$VAR[which(option_counts$COUNT == 2)])
+  for (question_id in unique(options$VAR)) {
+    question_options <- options[which(options$VAR == question_id),]$MEANING
+    if (("Yes" %in% question_options && "No" %in% question_options) ||
+        ("Ja" %in% question_options && "Nein" %in% question_options)) {
+      binary_question_ids <- c(binary_question_ids, question_id)
+    }
   }
+  return(binary_question_ids)
+}
+
+isComparisonBinary <- function(options, firstQuestionId, secondQuestionId) {
+  binaryQuestionIds <- getBinaryQuestionIds(options)
+  return(firstQuestionId %in% binaryQuestionIds && secondQuestionId %in% binaryQuestionIds)
 }
 
 runMcNemarTest <- function(firstResponses, secondResponses) {
   # Filter NA responses
-  naIndices <- unique(c(getNaIndices(firstResponses), getNaIndices(secondResponses)))
-  cleanFirstResponses <- cleanNaResponses(firstResponses, naIndices)
-  cleanSecondResponses <- cleanNaResponses(secondResponses, naIndices)
+  cleanPairedNaResponses <- function(responses, otherResponses) {
+    getNaIndices <- function(responses) {
+      return(which(is.na(responses)))
+    }
+    naIndices <- unique(c(getNaIndices(responses), getNaIndices(otherResponses)))
+    if (length(naIndices) > 0) {
+      return(responses[-naIndices])
+    } else {
+      return(responses)
+    }
+  }
+  cleanFirstResponses <- cleanPairedNaResponses(firstResponses, secondResponses)
+  cleanSecondResponses <- cleanPairedNaResponses(secondResponses, firstResponses)
   # Ensure square table
   allLevels <- sort(unique(c(cleanFirstResponses, cleanSecondResponses)))
   if (length(allLevels) == 1) {

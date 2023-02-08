@@ -135,7 +135,7 @@ combinePlots <- function(inputFileNames, outputFileName, title = NA, legend_mm_h
   }
 }
 
-createCombinedSankeyPlots <- function(plot_parameters, outputFileName, title = NA, legend_mm_height = 0, half_width = FALSE, addSubfigureKey = TRUE, binary = FALSE) {
+createCombinedSankeyPlots <- function(plot_parameters, outputFileName, title = NA, legend_mm_height = 0, half_width = FALSE, addSubfigureKey = TRUE, binary = FALSE, results = NULL, options = NULL, questions = NULL) {
   result_directory <- getSankeyResultDirectory(create = TRUE)
   single_result_directory <- getSingleSankeyResultDirectory(create = TRUE)
   outputImageParams <- getOutputImageParams(length(plot_parameters), title, legend_mm_height, half_width)
@@ -167,6 +167,9 @@ createCombinedSankeyPlots <- function(plot_parameters, outputFileName, title = N
     sankey_parameters[["plot_path"]] <- plot_path
     sankey_parameters[["title"]] <- title
     sankey_parameters[["binary"]] <- binary
+    sankey_parameters[["results"]] <- results
+    sankey_parameters[["options"]] <- options
+    sankey_parameters[["questions"]] <- questions
     create_sanky_plot(sankey_parameters)
     return(plot_path)
   }
