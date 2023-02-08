@@ -254,16 +254,27 @@ create_sanky_plot <- function(plot_parameters) {
   comparisons <- c()
   first_question_ids <- c()
   second_question_ids <- c()
+  # Run McNemar for binary questions and Wilcoxon Signed Rank for answers with more categories
   p_values <- c()
+  MC_NEMAR <- "mc.nemar"
+  WILCOXON <- "wilcoxon.signed.rank"
+  test_methods <- c()
   effect_values <- c()
   effect_interpretation_values <- c()
-  # Alternatively run McNemar (only for binary questions)
-  alternative_p_values <- c()
-  alternative_effect_values <- c()
-  alternative_effect_interpretation_values <- c()
+  # If binary, also log Wilcoxon values to be able to compare afterwards
+  other_binary_p_values <- c()
+  other_binary_effect_values <- c()
+  other_binary_effect_interpretation_values <- c()
+  other_binary_test_methods <- c()
   values <- c()
   test_warnings <- c()
-  alternative_test_warnings <- c()
+  other_binary_test_warnings <- c()
+  EMPTY_VALUE <- "–"
+  EMPTY_TEST_RESULT <- list(
+    "pValue" = EMPTY_VALUE,
+    "effectSize" = EMPTY_VALUE,
+    "effectSizeInterpretation" = EMPTY_VALUE,
+    "testWarning" = EMPTY_VALUE)
   questionnaire_comparisons <- getPairwiseComparisons(ordered_questionnaires)
   for (comparison in names(questionnaire_comparisons)) {
     first_questionnaire <- questionnaire_comparisons[[comparison]][1]
@@ -276,42 +287,37 @@ create_sanky_plot <- function(plot_parameters) {
                                second_questionnaire, ": ", paste(second_responses, collapse = ", ")))
     areCurrentResponsesPresent <- !all(is.na(first_responses)) & !all(is.na(second_responses))
     if (areCurrentResponsesPresent) {
-      test_results <- runPairedWilcoxonTest(first_responses, second_responses)
-      p_value <- test_results[["pValue"]]
-      effect_value <- test_results[["effectSize"]]
-      effect_interpretation_value <- as.character(test_results[["effectSizeInterpretation"]])
-      test_warning <- test_results[["testWarning"]]
+      if (isComparisonBinary(options, first_question_id, second_question_id)) {
+        test_method <- MC_NEMAR
+        other_binary_test_method <- WILCOXON
+        test_results <- runMcNemarTest(first_responses, second_responses)
+        other_binary_test_results <- runPairedWilcoxonTest(first_responses, second_responses)
+      } else {
+        test_method <- WILCOXON
+        other_binary_test_method <- EMPTY_VALUE
+        test_results <- runPairedWilcoxonTest(first_responses, second_responses)
+        other_binary_test_results <- EMPTY_TEST_RESULT
+      }
     } else {
-      p_value <- "–"
-      effect_value <- "–"
-      effect_interpretation_value <- "–"
-      test_warning <- "–"
-    }
-    isCurrentComparisonBinary <- isComparisonBinary(options, first_question_id, second_question_id)
-    if (areCurrentResponsesPresent && isCurrentComparisonBinary) {
-      alternative_test_results <- runMcNemarTest(first_responses, second_responses)
-      alternative_p_value <- alternative_test_results[["pValue"]]
-      alternative_effect_value <- alternative_test_results[["effectSize"]]
-      alternative_effect_interpretation_value <- as.character(alternative_test_results[["effectSizeInterpretation"]])
-      alternative_test_warning <- alternative_test_results[["testWarning"]]
-    } else {
-      alternative_p_value <- "–"
-      alternative_effect_value <- "–"
-      alternative_effect_interpretation_value <- "–"
-      alternative_test_warning <- "–"
+      test_method <- EMPTY_VALUE
+      other_binary_test_method <- EMPTY_VALUE
+      test_results <- EMPTY_TEST_RESULT
+      other_binary_test_results <- EMPTY_TEST_RESULT
     }
     titles <- c(titles, title)
     comparisons <- c(comparisons, comparison)
     first_question_ids <- c(first_question_ids, first_question_id)
     second_question_ids <- c(second_question_ids, second_question_id)
-    p_values <- c(p_values, p_value)
-    effect_values <- c(effect_values, effect_value)
-    effect_interpretation_values <- c(effect_interpretation_values, effect_interpretation_value)
-    test_warnings <- c(test_warnings, test_warning)
-    alternative_p_values <- c(alternative_p_values,  alternative_p_value)
-    alternative_effect_values <- c(alternative_effect_values,  alternative_effect_value)
-    alternative_effect_interpretation_values <- c(alternative_effect_interpretation_values, alternative_effect_interpretation_value)
-    alternative_test_warnings <- c(alternative_test_warnings, alternative_test_warning)
+    p_values <- c(p_values, test_results[["pValue"]])
+    test_methods <- c(test_methods, test_method)
+    effect_values <- c(effect_values, test_results[["effectSize"]])
+    effect_interpretation_values <- c(effect_interpretation_values, test_results[["effectSizeInterpretation"]])
+    test_warnings <- c(test_warnings, test_results[["testWarning"]])
+    other_binary_p_values <- c(other_binary_p_values,  other_binary_test_results[["pValue"]])
+    other_binary_test_methods <- c(other_binary_test_methods, other_binary_test_method)
+    other_binary_effect_values <- c(other_binary_effect_values,  other_binary_test_results[["effectSize"]])
+    other_binary_effect_interpretation_values <- c(other_binary_effect_interpretation_values, other_binary_test_results[["effectSizeInterpretation"]])
+    other_binary_test_warnings <- c(other_binary_test_warnings, other_binary_test_results[["testWarning"]])
   }
   q_values <- p.adjust(p_values, method = "fdr")
   formatted_p_values <- c()
@@ -328,12 +334,11 @@ create_sanky_plot <- function(plot_parameters) {
     effect_interpretation_comment <- paste0("; ", effect_interpretation_value)
     formatted_effect_values <- c(formatted_effect_values, format_value_information(comparison, effect_value, digits = 3, comment = effect_interpretation_comment))
   }
-  
   comparison_results <- data.frame(
-    titles, comparisons, first_question_ids, second_question_ids, p_values, effect_values,
+    titles, comparisons, first_question_ids, second_question_ids, p_values, test_methods, effect_values,
     effect_interpretation_values, values, test_warnings, q_values,
-    alternative_p_values, alternative_effect_values, alternative_effect_interpretation_values,
-    alternative_test_warnings)
+    other_binary_p_values, other_binary_test_methods, other_binary_effect_values, other_binary_effect_interpretation_values,
+    other_binary_test_warnings)
   write.csv(comparison_results, get_file_path(plot_path, "csv"), row.names = FALSE)
 
   font_size <- 18
