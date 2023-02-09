@@ -1471,8 +1471,8 @@ AGGREGATED_DATA <- runIfNotPresent(getAggregatedData, AGGREGATED_DATA_PATH, forc
 The following table shows differences with _p_ <= 0.1; only paired results from HPI are included and only binary results from the first HPI questionnaires:
 
 ```{r evolution-table, echo=FALSE, results='asis', include=TRUE}
+EVOLUTION_SUPPLEMENT_THRESHOLD <- 0.1
 getEvolutionTableData <- function() {
-  EVOLUTION_SUPPLEMENT_THRESHOLD <- 0.1
   tableData <- subset(EVOLUTION_STATS[which(
   EVOLUTION_STATS$pValue != "–" &
     EVOLUTION_STATS$pValue <= EVOLUTION_SUPPLEMENT_THRESHOLD &
@@ -1541,22 +1541,26 @@ printEnglishTextsForHPI2020Q4()
 ```{r review-comment-mcnemar-vs-wilcoxon, include=FALSE}
 # Get (truly) binary questions
 source("modules/statistics/utils.R", local = TRUE)
-binary_question_ids <- getBinaryQuestionIds(COMPLETE_OPTIONS)
-binary_evolutions <- EVOLUTION_STATS[which(EVOLUTION_STATS$firstQuestionId %in% binary_question_ids & EVOLUTION_STATS$secondQuestionId %in% binary_question_ids & EVOLUTION_STATS$isPaired),]
-is.numeric.itemwise <- function(list) {
-  is_numeric_list <- suppressWarnings(!is.na(as.numeric(list))) # suppress "NAs introduced by coercion" warnings
-  return(is_numeric_list)
+getWilcoxonMccNemarDifferences <- function() {
+  binary_question_ids <- getBinaryQuestionIds(COMPLETE_OPTIONS)
+  binary_evolutions <- EVOLUTION_STATS[which(EVOLUTION_STATS$firstQuestionId %in% binary_question_ids & EVOLUTION_STATS$secondQuestionId %in% binary_question_ids & EVOLUTION_STATS$isPaired),]
+  is.numeric.itemwise <- function(list) {
+    is_numeric_list <- suppressWarnings(!is.na(as.numeric(list))) # suppress "NAs introduced by coercion" warnings
+    return(is_numeric_list)
+  }
+  binary_evolutions$hasBothPValues <- is.numeric.itemwise(binary_evolutions$pValue) & is.numeric.itemwise(binary_evolutions$alternativePValue)
+  binary_evolutions$pValueDiff <- suppressWarnings(ifelse(
+    binary_evolutions$hasBothPValues,
+    abs(as.numeric(binary_evolutions$pValue) - as.numeric(binary_evolutions$alternativePValue)),
+    NaN))
+  binary_evolutions <- binary_evolutions[order(binary_evolutions$pValueDiff),]
+  binary_evolutions$newInSupplement <- binary_evolutions$pValue <= EVOLUTION_SUPPLEMENT_THRESHOLD &
+    binary_evolutions$alternativePValue > EVOLUTION_SUPPLEMENT_THRESHOLD
+  binary_evolutions$removedFromSupplement <- binary_evolutions$pValue > EVOLUTION_SUPPLEMENT_THRESHOLD &
+    binary_evolutions$alternativePValue <= EVOLUTION_SUPPLEMENT_THRESHOLD
+  return(binary_evolutions)
 }
-binary_evolutions$hasBothPValues <- is.numeric.itemwise(binary_evolutions$pValue) & is.numeric.itemwise(binary_evolutions$alternativePValue)
-binary_evolutions$pValueDiff <- ifelse(
-  binary_evolutions$hasBothPValues,
-  abs(as.numeric(binary_evolutions$pValue) - as.numeric(binary_evolutions$alternativePValue)),
-  NaN)
-binary_evolutions <- binary_evolutions[order(binary_evolutions$pValueDiff),]
-binary_evolutions$newInSupplement <- binary_evolutions$pValue <= EVOLUTION_SUPPLEMENT_THRESHOLD &
-  binary_evolutions$alternativePValue > EVOLUTION_SUPPLEMENT_THRESHOLD
-binary_evolutions$removedFromSupplement <- binary_evolutions$pValue > EVOLUTION_SUPPLEMENT_THRESHOLD &
-  binary_evolutions$alternativePValue <= EVOLUTION_SUPPLEMENT_THRESHOLD
+WILCOXON_MCNEMAR_DIFFERENCES <- getWilcoxonMccNemarDifferences()
 ```
 
 ```{r review-comment-better-evolution, include=FALSE}
