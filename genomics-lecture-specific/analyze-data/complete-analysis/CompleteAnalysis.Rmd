@@ -1477,15 +1477,36 @@ The following table shows differences with _p_ <= 0.1; only paired results from 
 
 ```{r evolution-table, echo=FALSE, results='asis', include=TRUE}
 EVOLUTION_SUPPLEMENT_THRESHOLD <- 0.1
+
 getEvolutionTableData <- function() {
-  tableData <- subset(EVOLUTION_STATS[which(
-  EVOLUTION_STATS$pValue != "–" &
-    EVOLUTION_STATS$pValue <= EVOLUTION_SUPPLEMENT_THRESHOLD &
-    !startsWith(EVOLUTION_STATS$questionTitle, "I want to (Q1, Q2) or did (Q3) ") & # redundant Q1-Q3
-    (EVOLUTION_STATS$uni != HPI_NAME | EVOLUTION_STATS$uni == HPI_NAME & EVOLUTION_STATS$isPaired) &
-    (EVOLUTION_STATS$year != HPI_FIRST_YEAR | EVOLUTION_STATS$year == HPI_FIRST_YEAR & EVOLUTION_STATS$isBinary)
-  ),], select = -c(firstQuestionId, secondQuestionId, alternativePValue, alternativeEffectSize, alternativeEffectSizeInterpretation, alternativeTestMethod, isBinary, isPaired))
-  tableData <- tableData[order(tableData$pValue),]
+  filterEvolutionTableRows <- function(data) {
+    # TODO for questions included in evolution table, include all time points
+    # TODO only reported numbers for HPI ST 2020; also report ST 2021 and TUM?
+    return(data[which(
+      data$pValue != "–" &
+        data$pValue <= EVOLUTION_SUPPLEMENT_THRESHOLD &
+        !startsWith(data$questionTitle, "I want to (Q1, Q2) or did (Q3) ") & # redundant Q1-Q3
+        (data$uni != HPI_NAME | data$uni == HPI_NAME & data$isPaired) &
+        (data$year != HPI_FIRST_YEAR | data$year == HPI_FIRST_YEAR & data$isBinary)
+      ),]
+    )
+  }
+
+  filterEvolutionTableColumns <- function(data) {
+    return(subset(data, select = -c(firstQuestionId, secondQuestionId, alternativePValue,
+                                    alternativeEffectSize, alternativeEffectSizeInterpretation,
+                                    alternativeTestMethod, isBinary, isPaired)))
+  }
+
+  sortEvolutionTable <- function(data) {
+    # TODO time points per question should be ordered (in general, order by question?)
+    return(data[order(data$pValue),])
+  }
+
+  tableData <- filterEvolutionTableRows(EVOLUTION_STATS)
+  View(tableData)
+  tableData <- filterEvolutionTableColumns(tableData)
+  tableData <- sortEvolutionTable(tableData)
   write.csv(tableData, file.path(COMPLETE_RESULTS_DIRECTORY, "evolution_table.csv"), row.names = FALSE)
   return(tableData)
 }
