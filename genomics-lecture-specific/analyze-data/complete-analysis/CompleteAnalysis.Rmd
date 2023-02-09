@@ -1479,7 +1479,8 @@ getEvolutionTableData <- function() {
     !startsWith(EVOLUTION_STATS$questionTitle, "I want to (Q1, Q2) or did (Q3) ") & # redundant Q1-Q3
     (EVOLUTION_STATS$uni != HPI_NAME | EVOLUTION_STATS$uni == HPI_NAME & EVOLUTION_STATS$isPaired) &
     (EVOLUTION_STATS$year != HPI_FIRST_YEAR | EVOLUTION_STATS$year == HPI_FIRST_YEAR & EVOLUTION_STATS$isBinary)
-  ),], select = -c(firstQuestionId, secondQuestionId, alternativePValue, alternativeEffectSize, alternativeEffectSizeInterpretation, alternativeTestMethod))
+  ),], select = -c(firstQuestionId, secondQuestionId, alternativePValue, alternativeEffectSize, alternativeEffectSizeInterpretation, alternativeTestMethod, isBinary, isPaired))
+  tableData <- tableData[order(tableData$pValue),]
   write.csv(tableData, file.path(COMPLETE_RESULTS_DIRECTORY, "evolution_table.csv"), row.names = FALSE)
   return(tableData)
 }
