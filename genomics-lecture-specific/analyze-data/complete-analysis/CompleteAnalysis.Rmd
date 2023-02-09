@@ -47,13 +47,13 @@ HPI_FIRST_YEAR <- "SoSe 2020"
 HPI_SECOND_YEAR <- "SoSe 2021"
 TUM_COMPLETE_YEAR <- "WiSe 2020/21"
 
-getCleanQuestionnaire <- function(questionnaire) {
-  if (!str_detect(questionnaire, fixed("_"))) {
-     return(questionnaire)
-    } else if (questionnaire == "TUM_Retrospective") {
-      return("Q4")
+getCleanQuestionnaireNames <- function(questionnaireText) {
+  if (!str_detect(questionnaireText, fixed("_"))) {
+     return(questionnaireText)
+    } else if (str_detect(questionnaireText, fixed("TUM_Retrospective"))) {
+      return(str_replace_all(questionnaireText, "TUM_Retrospective", "Q4"))
     } else { # questionnaire name with uni name and underscore
-     return(str_remove(str_remove(str_remove(questionnaire, TUM_NAME), HPI_NAME), "_"))
+     return(str_remove_all(str_remove_all(str_remove_all(questionnaireText, TUM_NAME), HPI_NAME), "_"))
     }
 }
 
@@ -154,7 +154,7 @@ combineCompleteResultData <- function() {
       UNI <- c(UNI, HPI_NAME)
     }
     # Get CLEAN_QUESTNNR
-    CLEAN_QUESTNNR <- c(CLEAN_QUESTNNR, getCleanQuestionnaire(questionnaire))
+    CLEAN_QUESTNNR <- c(CLEAN_QUESTNNR, getCleanQuestionnaireNames(questionnaire))
     # Get COURSE_YEAR
     if (questionnaire == "TUM_Retrospective") {
       if (is.na(row$T201)) {
@@ -1304,6 +1304,11 @@ getEvolutionStats <- function() {
     }
   }
   evolution_stats <- data.frame(questionTitle, uni, year, comparison, firstQuestionId, secondQuestionId, isPaired, isBinary, pValue, testMethod, effectSize, effectSizeInterpretation, values, alternativePValue, alternativeTestMethod, alternativeEffectSize, alternativeEffectSizeInterpretation)
+  for (rowIndex in 1:nrow(evolution_stats)) {
+    evolution_stats$comparison[rowIndex] <- getCleanQuestionnaireNames(evolution_stats$comparison[rowIndex])
+    # CAUTION: uni names and underscores will be removed from values (but should not be present there anyways)
+    evolution_stats$values[rowIndex] <- getCleanQuestionnaireNames(evolution_stats$values[rowIndex])
+  }
   write.csv(evolution_stats, EVOLUTION_STATS_PATH, row.names = FALSE)
   return(evolution_stats)
 }
