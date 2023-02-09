@@ -157,7 +157,9 @@ runMcNemarTest <- function(firstResponses, secondResponses) {
   if (!is.na(significanceTest$p.value)) {
     oddsRatio <- OddsRatio(contingencyTable, conf.level = 0.95)
     effectSize <- oddsRatio[1]
-    effectSizeInterpretation <- paste0("Confidence intervals: ", oddsRatio[2], "–", oddsRatio[3])
+    lowerCI <- round(oddsRatio[2], digits = 6)
+    upperCI <- round(oddsRatio[3], digits = 6)
+    effectSizeInterpretation <- paste0("CIs: ", lowerCI, ", ", upperCI)
   } else {
     effectSize <- NA
     effectSizeInterpretation <- NA

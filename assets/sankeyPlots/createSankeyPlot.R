@@ -267,6 +267,7 @@ create_sanky_plot <- function(plot_parameters) {
   other_binary_effect_interpretation_values <- c()
   other_binary_test_methods <- c()
   values <- c()
+  average_differences <- c()
   test_warnings <- c()
   other_binary_test_warnings <- c()
   EMPTY_VALUE <- "–"
@@ -283,12 +284,21 @@ create_sanky_plot <- function(plot_parameters) {
     second_question_id <- question_list[[second_questionnaire]]
     first_responses <- get_answer_values(migration_data, first_questionnaire)
     second_responses <- get_answer_values(migration_data, second_questionnaire)
+    getFormattedAverage <- function(response_values) {
+      return(round(mean(response_values[which(!is.na(response_values))]), digits = 2))
+    }
     getValueString <- function(questionnaire_name, response_values) {
       return(paste0(questionnaire_name, ": ", paste(response_values, collapse = ", "),
-                    paste0(" (avg. ", round(mean(response_values[which(!is.na(response_values))]), digits = 2), ")")))
+                    paste0(" (avg. ", getFormattedAverage(response_values), ")")))
     }
     values <- c(values, paste0(getValueString(first_questionnaire, first_responses), "; ",
                                getValueString(second_questionnaire, second_responses)))
+    getAverageDifferences <- function(first_responses, second_responses) {
+      first_average <- getFormattedAverage(first_responses)
+      second_average <- getFormattedAverage(second_responses)
+      return(max(first_average, second_average) - min(first_average, second_average))
+    }
+    average_differences <- c(average_differences, getAverageDifferences(first_responses, second_responses))
     areCurrentResponsesPresent <- !all(is.na(first_responses)) & !all(is.na(second_responses))
     if (areCurrentResponsesPresent) {
       if (isComparisonBinary(options, first_question_id, second_question_id)) {
@@ -340,7 +350,7 @@ create_sanky_plot <- function(plot_parameters) {
   }
   comparison_results <- data.frame(
     titles, comparisons, first_question_ids, second_question_ids, p_values, test_methods, effect_values,
-    effect_interpretation_values, values, test_warnings, q_values,
+    effect_interpretation_values, values, average_differences, test_warnings, q_values,
     other_binary_p_values, other_binary_test_methods, other_binary_effect_values, other_binary_effect_interpretation_values,
     other_binary_test_warnings)
   write.csv(comparison_results, get_file_path(plot_path, "csv"), row.names = FALSE)

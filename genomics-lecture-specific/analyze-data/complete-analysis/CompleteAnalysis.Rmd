@@ -1253,6 +1253,7 @@ getEvolutionStats <- function() {
   effectSize <- c()
   effectSizeInterpretation <- c()
   values <- c()
+  avgDiff <- c()
   alternativePValue <- c()
   alternativeTestMethod <- c()
   alternativeEffectSize <- c()
@@ -1287,6 +1288,7 @@ getEvolutionStats <- function() {
       alternativeTestMethod <- c(alternativeTestMethod, stats[["other_binary_test_methods"]])
       alternativeEffectSize <- c(alternativeEffectSize, stats[["other_binary_effect_values"]])
       alternativeEffectSizeInterpretation <- c(alternativeEffectSizeInterpretation, stats[["other_binary_effect_interpretation_values"]])
+      avgDiff <- c(avgDiff, stats[["average_differences"]])
     } else {
       questionTitle <- c(questionTitle, stats[["question.text"]])
       comparison <- c(comparison, stats[["comparison"]])
@@ -1301,9 +1303,10 @@ getEvolutionStats <- function() {
       alternativeEffectSize <- c(alternativeEffectSize, rep("–", nrow(stats)))
       alternativeEffectSizeInterpretation <- c(alternativeEffectSizeInterpretation, rep("–", nrow(stats)))
       values <- str_replace(values, "\n", "; ")
+      avgDiff <- c(avgDiff, rep("–", nrow(stats)))
     }
   }
-  evolution_stats <- data.frame(questionTitle, uni, year, comparison, firstQuestionId, secondQuestionId, isPaired, isBinary, pValue, testMethod, effectSize, effectSizeInterpretation, values, alternativePValue, alternativeTestMethod, alternativeEffectSize, alternativeEffectSizeInterpretation)
+  evolution_stats <- data.frame(questionTitle, uni, year, comparison, firstQuestionId, secondQuestionId, isPaired, isBinary, pValue, testMethod, effectSize, effectSizeInterpretation, values, avgDiff, alternativePValue, alternativeTestMethod, alternativeEffectSize, alternativeEffectSizeInterpretation)
   for (rowIndex in 1:nrow(evolution_stats)) {
     evolution_stats$comparison[rowIndex] <- getCleanQuestionnaireNames(evolution_stats$comparison[rowIndex])
     # CAUTION: uni names and underscores will be removed from values (but should not be present there anyways)
@@ -1480,16 +1483,51 @@ EVOLUTION_SUPPLEMENT_THRESHOLD <- 0.1
 
 getEvolutionTableData <- function() {
   filterEvolutionTableRows <- function(data) {
-    # TODO for questions included in evolution table, include all time points
-    # TODO only reported numbers for HPI ST 2020; also report ST 2021 and TUM?
-    return(data[which(
-      data$pValue != "–" &
-        data$pValue <= EVOLUTION_SUPPLEMENT_THRESHOLD &
-        !startsWith(data$questionTitle, "I want to (Q1, Q2) or did (Q3) ") & # redundant Q1-Q3
+    includedData <- data[which(
+      # Exclude redundant Q1-Q3 results; also included for Q1-Q4:
+      !startsWith(data$questionTitle, "I want to (Q1, Q2) or did (Q3) ") &
+        # Exclude unpaired HPI tests (only generated for comparison):
         (data$uni != HPI_NAME | data$uni == HPI_NAME & data$isPaired) &
+        # Exclude non-summarized HPI responses from first year (not done in other years as no Likert scales):
         (data$year != HPI_FIRST_YEAR | data$year == HPI_FIRST_YEAR & data$isBinary)
       ),]
-    )
+    relevantData <- includedData[which(
+      includedData$pValue != "–" &
+        includedData$pValue <= EVOLUTION_SUPPLEMENT_THRESHOLD
+      ),]
+    # For relevant data, also add other time points for comparison (independent relevant or not)
+    # Only for current questionnaire (uni and year): 84
+    # Adding also other unis and year: 96
+    extendedRelevantData <- NULL
+    onlyPerQuestionnaire <- FALSE
+    if (onlyPerQuestionnaire) {
+      for (uni in unique(relevantData$uni)) {
+        uni_data <- relevantData[which(relevantData$uni == uni),]
+        for (year in unique(uni_data$year)) {
+          uni_year_data <- uni_data[which(uni_data$year == year),]
+          for (question in unique(uni_year_data$questionTitle)) {
+            complete_data <- includedData[which(includedData$uni == uni &
+                                                  includedData$year == year &
+                                                  includedData$questionTitle == question),]
+            extendedRelevantData <- rbind(extendedRelevantData, complete_data)
+          }
+        }
+      }
+    } else {
+      for (question in unique(relevantData$questionTitle)) {
+        complete_data <- includedData[which(includedData$questionTitle == question),]
+        extendedRelevantData <- rbind(extendedRelevantData, complete_data)
+      }
+    }
+    return(extendedRelevantData)
+  }
+
+  sortEvolutionTable <- function(data) {
+    sortColumns <- c("comparison", "uni", "year", "questionTitle")
+    for (sortBy in sortColumns) {
+      data <- data[order(data[[sortBy]]),]
+    }
+    return(data)
   }
 
   filterEvolutionTableColumns <- function(data) {
@@ -1498,15 +1536,9 @@ getEvolutionTableData <- function() {
                                     alternativeTestMethod, isBinary, isPaired)))
   }
 
-  sortEvolutionTable <- function(data) {
-    # TODO time points per question should be ordered (in general, order by question?)
-    return(data[order(data$pValue),])
-  }
-
   tableData <- filterEvolutionTableRows(EVOLUTION_STATS)
-  View(tableData)
-  tableData <- filterEvolutionTableColumns(tableData)
   tableData <- sortEvolutionTable(tableData)
+  tableData <- filterEvolutionTableColumns(tableData)
   write.csv(tableData, file.path(COMPLETE_RESULTS_DIRECTORY, "evolution_table.csv"), row.names = FALSE)
   return(tableData)
 }
@@ -1515,7 +1547,7 @@ printChangeCounts <- function(alpha = 0.05) {
   changes <- list()
   for (rowIndex in 1:nrow(EVOLUTION_TABLE_DATA)) {
     currentData <- EVOLUTION_TABLE_DATA[rowIndex,]
-    if (currentData$pValue < alpha) {
+    if (!is.na(currentData$pValue) && currentData$pValue < alpha) {
       change <- str_remove_all(currentData$comparison, "_HPI")
       if (change %in% names(changes)) {
         changes[[change]] <- changes[[change]] + 1
@@ -1528,7 +1560,6 @@ printChangeCounts <- function(alpha = 0.05) {
 } 
 
 EVOLUTION_TABLE_DATA <- getEvolutionTableData()
-renderTable(EVOLUTION_TABLE_DATA)
 printChangeCounts(alpha = 0.05)
 printChangeCounts(alpha = 0.1)
 ```

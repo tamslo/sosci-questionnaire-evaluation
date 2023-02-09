@@ -81,7 +81,7 @@ getQ1ToQ4SankeyParameters <- function() {
     )
   )
   plot_parameters[["q4_opinion_favor_family"]] <- list(
-    "title" = "PGT is useful to inform family members about health risks (Q1-Q3), I would recommend PGT to relatives and friends who have not taken the course.",
+    "title" = "PGT is useful to inform family members about health risks (Q1-Q3), I would recommend PGT to relatives and friends who have not taken the course (Q4).",
     "question.list" = list(
       "Q1" = "DU07_02",
       "Q2" = "DU07_02",
@@ -99,7 +99,7 @@ getQ1ToQ4SankeyParameters <- function() {
     )
   )
   plot_parameters[["q4_disease_risk_mono"]] = list(
-    "title" = "I want to (Q1, Q2) or did (Q3, Q4: monogenic) assess my personal disease risk.",
+    "title" = "I want to (Q1, Q2) or did (Q3, Q4; Q4: monogenic) assess my personal disease risk.",
     "question.list" = list(
       "Q1" = "DU06_02",
       "Q2" = "DU06_02",
@@ -108,7 +108,7 @@ getQ1ToQ4SankeyParameters <- function() {
     )
   )
   plot_parameters[["q4_disease_risk_poly"]] = list(
-    "title" = "I want to (Q1, Q2) or did (Q3, Q4: polygenic) assess my personal disease risk.",
+    "title" = "I want to (Q1, Q2) or did (Q3, Q4; Q4: polygenic) assess my personal disease risk.",
     "question.list" = list(
       "Q1" = "DU06_02",
       "Q2" = "DU06_02",
@@ -117,7 +117,7 @@ getQ1ToQ4SankeyParameters <- function() {
     )
   )
   plot_parameters[["q4_wellness_traits"]] = list(
-    "title" = "I want to (Q1, Q2) or did (Q4: monogenic) assess my wellness traits.",
+    "title" = "I want to (Q1, Q2) or did (Q4) assess my wellness traits (not asked in Q3).",
     "question.list" = list(
       "Q1" = "DU06_04",
       "Q2" = "DU06_04",
@@ -125,7 +125,7 @@ getQ1ToQ4SankeyParameters <- function() {
     )
   )
   plot_parameters[["q4_pgx"]] = list(
-    "title" = "I want to (Q1, Q2) or did (Q3, Q4: monogenic) assess my pharmacogenomic markers.",
+    "title" = "I want to (Q1, Q2) or did (Q3, Q4) assess my pharmacogenomic markers.",
     "question.list" = list(
       "Q1" = "DU06_05",
       "Q2" = "DU06_05",
