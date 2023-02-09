@@ -283,8 +283,12 @@ create_sanky_plot <- function(plot_parameters) {
     second_question_id <- question_list[[second_questionnaire]]
     first_responses <- get_answer_values(migration_data, first_questionnaire)
     second_responses <- get_answer_values(migration_data, second_questionnaire)
-    values <- c(values, paste0(first_questionnaire, ": ", paste(first_responses, collapse = ", "), "; ",
-                               second_questionnaire, ": ", paste(second_responses, collapse = ", ")))
+    getValueString <- function(questionnaire_name, response_values) {
+      return(paste0(questionnaire_name, ": ", paste(response_values, collapse = ", "),
+                    paste0(" (avg. ", round(mean(response_values[which(!is.na(response_values))]), digits = 2), ")")))
+    }
+    values <- c(values, paste0(getValueString(first_questionnaire, first_responses), "; ",
+                               getValueString(second_questionnaire, second_responses)))
     areCurrentResponsesPresent <- !all(is.na(first_responses)) & !all(is.na(second_responses))
     if (areCurrentResponsesPresent) {
       if (isComparisonBinary(options, first_question_id, second_question_id)) {
