@@ -1567,7 +1567,7 @@ printEnglishTextsForHPI2020Q4()
 ```{r review-comment-mcnemar-vs-wilcoxon, include=FALSE}
 # Get (truly) binary questions
 source("modules/statistics/utils.R", local = TRUE)
-getWilcoxonMccNemarDifferences <- function() {
+getWilcoxonMcNemarDifferences <- function() {
   binary_question_ids <- getBinaryQuestionIds(COMPLETE_OPTIONS)
   binary_evolutions <- EVOLUTION_STATS[which(EVOLUTION_STATS$firstQuestionId %in% binary_question_ids & EVOLUTION_STATS$secondQuestionId %in% binary_question_ids & EVOLUTION_STATS$isPaired),]
   is.numeric.itemwise <- function(list) {
@@ -1586,15 +1586,13 @@ getWilcoxonMccNemarDifferences <- function() {
     binary_evolutions$alternativePValue <= EVOLUTION_SUPPLEMENT_THRESHOLD
   return(binary_evolutions)
 }
-WILCOXON_MCNEMAR_DIFFERENCES <- getWilcoxonMccNemarDifferences()
-```
-
-```{r review-comment-better-evolution, include=FALSE}
-# TODO
+WILCOXON_MCNEMAR_DIFFERENCES <- getWilcoxonMcNemarDifferences()
 ```
 
 ```{r review-comment-open-ended-answers, include=FALSE}
 open_ended_questions <- COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$type == "OPEN"),]
-# Why no open in short-version??
-# TODO
+# Why no open in short-version?? (Maybe filtered in combining step?)
+# TODO get question answers (and filter out empty and "no" answers)
+# TODO review open question answers, whether anything is interesting
+# TODO include interesting answers in text or explain why not included (text and review response)
 ```
