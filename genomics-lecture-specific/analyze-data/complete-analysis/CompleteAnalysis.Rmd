@@ -1490,16 +1490,46 @@ EVOLUTION_SUPPLEMENT_THRESHOLD <- 0.1
 # (responses from McNemar implicitly included via other inclusion criteria)
 EVOLUTION_SUPPLEMENT_EFFECT_MATCH <- "large"
 
-getEvolutionTableData <- function() {
-  filterEvolutionTableRows <- function(data) {
-    includedData <- data[which(
+getIncludedData <- function(data) {
+  return(data[which(
       # Exclude redundant Q1-Q3 results; also included for Q1-Q4:
       !startsWith(data$questionTitle, "I want to (Q1, Q2) or did (Q3) ") &
         # Exclude unpaired HPI tests (only generated for comparison):
         (data$uni != HPI_NAME | data$uni == HPI_NAME & data$isPaired) &
         # Exclude non-summarized HPI responses from first year (not done in other years as no Likert scales):
         (data$year != HPI_FIRST_YEAR | data$year == HPI_FIRST_YEAR & data$isBinary)
-      ),]
+      ),])
+}
+
+cleanEvolutionTableData <- function(data) {
+    setNa <- function(data, colName, value) {
+      indices <- which(data[[colName]] == value)
+      data[indices, colName] <- NA
+      return(data)
+    }
+    replaceSubstring <- function(data, colName, pattern, replacement) {
+      data[, colName] <- unlist(lapply(cleanData[, colName], function(value) {
+        str_replace_all(value, pattern, replacement)
+      }))
+      return(data)
+    }
+    cleanData <- setNa(data, "pValue", Inf)
+    cleanData <- setNa(cleanData, "effectSize", -Inf)
+    cleanData <- setNa(cleanData, "effectSize", "all pairwise differences equal zero")
+    cleanData <- setNa(cleanData, "effectSizeInterpretation", "undefined")
+    cleanData <- setNa(cleanData, "pValue", "–")
+    cleanData <- setNa(cleanData, "testMethod", "–")
+    cleanData <- setNa(cleanData, "effectSize", "–")
+    cleanData <- setNa(cleanData, "effectSizeInterpretation", "–")
+    cleanData <- replaceSubstring(cleanData, "year", "SoSe ", "")
+    cleanData <- replaceSubstring(cleanData, "year", "WiSe ", "")
+    cleanData <- cleanData[rowSums(is.na(cleanData)) != ncol(cleanData),]
+    return(cleanData)
+  }
+
+getEvolutionTableData <- function() {
+  filterEvolutionTableRows <- function(data) {
+    includedData <- getIncludedData(data)
     includeByEffectSize <- FALSE
     relevantIndices <- which(includedData$pValue != "–" & includedData$pValue <= EVOLUTION_SUPPLEMENT_THRESHOLD)
     if (includeByEffectSize) {
@@ -1559,32 +1589,6 @@ getEvolutionTableData <- function() {
                                     alternativeTestMethod, isBinary, isPaired)))
   }
 
-  cleanEvolutionTableData <- function(data) {
-    setNa <- function(data, colName, value) {
-      indices <- which(data[[colName]] == value)
-      data[indices, colName] <- NA
-      return(data)
-    }
-    replaceSubstring <- function(data, colName, pattern, replacement) {
-      data[, colName] <- unlist(lapply(cleanData[, colName], function(value) {
-        str_replace_all(value, pattern, replacement)
-      }))
-      return(data)
-    }
-    cleanData <- setNa(data, "pValue", Inf)
-    cleanData <- setNa(cleanData, "effectSize", -Inf)
-    cleanData <- setNa(cleanData, "effectSize", "all pairwise differences equal zero")
-    cleanData <- setNa(cleanData, "effectSizeInterpretation", "undefined")
-    cleanData <- setNa(cleanData, "pValue", "–")
-    cleanData <- setNa(cleanData, "testMethod", "–")
-    cleanData <- setNa(cleanData, "effectSize", "–")
-    cleanData <- setNa(cleanData, "effectSizeInterpretation", "–")
-    cleanData <- replaceSubstring(cleanData, "year", "SoSe ", "")
-    cleanData <- replaceSubstring(cleanData, "year", "WiSe ", "")
-    cleanData <- cleanData[rowSums(is.na(cleanData)) != ncol(cleanData),]
-    return(cleanData)
-  }
-
   tableData <- filterEvolutionTableRows(EVOLUTION_STATS)
   tableData <- sortEvolutionTable(tableData)
   tableData <- filterEvolutionTableColumns(tableData)
@@ -1612,6 +1616,22 @@ printChangeCounts <- function(tableData, alpha = 0.05) {
 EVOLUTION_TABLE_DATA <- getEvolutionTableData()
 printChangeCounts(EVOLUTION_TABLE_DATA, alpha = 0.05)
 printChangeCounts(EVOLUTION_TABLE_DATA, alpha = 0.1)
+
+printAverageAverageChanges <- function(data) {
+  includedData <- cleanEvolutionTableData(data)
+  for (uni in unique(includedData$uni)) {
+    uni_data <- includedData[which(includedData$uni == uni),]
+    for (year in unique(uni_data$year)) {
+      uni_year_data <- uni_data[which(uni_data$year == year),]
+      average_change <- uni_year_data$averageDifference
+      average_change <- average_change[which(!is.nan(average_change))]
+      average_change <- unlist(lapply(average_change, abs))
+      print(paste0("Average average change for ", uni, " in ", year, ": ", mean(average_change)))
+    }
+  }
+}
+printAverageAverageChanges(getIncludedData(EVOLUTION_STATS))
+printAverageAverageChanges(EVOLUTION_TABLE_DATA)
 
 # How to imoport to Excel:
 # - Select "Delimited"
