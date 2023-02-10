@@ -1546,7 +1546,7 @@ getEvolutionTableData <- function() {
   }
 
   sortEvolutionTable <- function(data) {
-    sortColumns <- c("comparison", "uni", "year", "questionTitle")
+    sortColumns <- c("comparison", "uni", "year", "questionTitle", "secondQuestionId", "firstQuestionId")
     for (sortBy in sortColumns) {
       data <- data[order(data[[sortBy]]),]
     }
@@ -1554,7 +1554,7 @@ getEvolutionTableData <- function() {
   }
 
   filterEvolutionTableColumns <- function(data) {
-    return(subset(data, select = -c(firstQuestionId, secondQuestionId, alternativePValue,
+    return(subset(data, select = -c(alternativePValue,
                                     alternativeEffectSize, alternativeEffectSizeInterpretation,
                                     alternativeTestMethod, isBinary, isPaired)))
   }
@@ -1581,6 +1581,7 @@ getEvolutionTableData <- function() {
     cleanData <- setNa(cleanData, "effectSizeInterpretation", "–")
     cleanData <- replaceSubstring(cleanData, "year", "SoSe ", "")
     cleanData <- replaceSubstring(cleanData, "year", "WiSe ", "")
+    cleanData <- cleanData[rowSums(is.na(cleanData)) != ncol(cleanData),]
     return(cleanData)
   }
 
