@@ -1554,7 +1554,7 @@ getEvolutionTableData <- function() {
   }
 
   filterEvolutionTableColumns <- function(data) {
-    return(subset(data, select = -c(alternativePValue,
+    return(subset(data, select = -c(firstQuestionId, secondQuestionId, alternativePValue,
                                     alternativeEffectSize, alternativeEffectSizeInterpretation,
                                     alternativeTestMethod, isBinary, isPaired)))
   }
