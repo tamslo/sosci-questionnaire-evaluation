@@ -1511,23 +1511,27 @@ getEvolutionTableData <- function(option = 1) {
     # For relevant data, also add other time points for comparison (independent relevant or not)
     # (1) Only for current questionnaire (uni and year): 84 (w/ effect size 197)
     # (2) Adding also other unis and year: 96 (w/ effect size 214)
-    # (3) Adding (1) only for first HPI year and all last year responses: 207 (w/ effect size 267)
+    # (3) Adding (1) only for first HPI year and all last year responses: 234 (w/ effect size ??)
     # (4) Only return data of last two years
-    extendedRelevantData <- NULL
     addAdditionalStrategy <- 2
-    if (option == 1) {
-      for (uni in unique(relevantData$uni)) {
-        uni_data <- relevantData[which(relevantData$uni == uni),]
+    getOtherTimePointsForQuestions <- function(data) {
+      extendedData <- NULL
+      for (uni in unique(data$uni)) {
+        uni_data <- data[which(data$uni == uni),]
         for (year in unique(uni_data$year)) {
           uni_year_data <- uni_data[which(uni_data$year == year),]
           for (question in unique(uni_year_data$questionTitle)) {
             complete_data <- includedData[which(includedData$uni == uni &
                                                   includedData$year == year &
                                                   includedData$questionTitle == question),]
-            extendedRelevantData <- rbind(extendedRelevantData, complete_data)
+            extendedData <- rbind(extendedData, complete_data)
           }
         }
       }
+      return(extendedData)
+    }
+    if (option == 1) {
+      extendedRelevantData <- getOtherTimePointsForQuestions(relevantData)
     } else if (option == 2) {
       for (question in unique(relevantData$questionTitle)) {
         complete_data <- includedData[which(includedData$questionTitle == question),]
@@ -1535,7 +1539,7 @@ getEvolutionTableData <- function(option = 1) {
       }
     } else if (option == 3) {
       extendedRelevantData <- rbind(
-        relevantData[which(relevantData$year == HPI_FIRST_YEAR),],
+        getOtherTimePointsForQuestions(relevantData[which(relevantData$year == HPI_FIRST_YEAR),]),
         includedData[which(includedData$year == HPI_SECOND_YEAR | includedData$year == TUM_COMPLETE_YEAR),])
     } else if (option == 4) {
       extendedRelevantData <- includedData[which(includedData$year == HPI_SECOND_YEAR | includedData$year == TUM_COMPLETE_YEAR),]
@@ -1576,6 +1580,12 @@ getEvolutionTableData <- function(option = 1) {
       data[indices, colName] <- NA
       return(data)
     }
+    replaceSubstring <- function(data, colName, pattern, replacement) {
+      data[, colName] <- unlist(lapply(cleanData[, colName], function(value) {
+        str_replace_all(value, pattern, replacement)
+      }))
+      return(data)
+    }
     cleanData <- setNa(data, "pValue", Inf)
     cleanData <- setNa(cleanData, "effectSize", -Inf)
     cleanData <- setNa(cleanData, "effectSize", "all pairwise differences equal zero")
@@ -1584,6 +1594,8 @@ getEvolutionTableData <- function(option = 1) {
     cleanData <- setNa(cleanData, "testMethod", "–")
     cleanData <- setNa(cleanData, "effectSize", "–")
     cleanData <- setNa(cleanData, "effectSizeInterpretation", "–")
+    cleanData <- replaceSubstring(cleanData, "year", "SoSe ", "")
+    cleanData <- replaceSubstring(cleanData, "year", "WiSe ", "")
     return(cleanData)
   }
 
