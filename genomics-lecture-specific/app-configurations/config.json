@@ -24,7 +24,7 @@
       "Checked": "Yes",
       "Not checked": "No",
       "Through the course I have gained a more positive opinion on genetic analysis": "More positive",
-      "Through the course I have become more critical about genetic analysis": "More negative"
+      "Through the course I have become more critical about genetic analysis": "More critical"
     },
     "answers": {},
     "pages": {
@@ -56,12 +56,12 @@
     "other": null
   },
   "valuePrefixMapping": {
-    "other": ["It depends", "I don't know", "I prefer not to say", "Not answered", "I don't understand", "Question not asked"],
-    "strong_agreement": ["I strongly agree", "Definitely yes", "Yes", "Checked", "Absolutely necessary", "I plan to further explore my genomic data beyond the course", "More positive", "I want to participate in the study", "Option 1: I would like to analyze my own genome", "I wish to continue with the questionnaire"],
-    "agreement": ["I agree", "Probably yes", "Rather important"],
+    "other": ["It depends", "I don't know", "I prefer not to say", "Not answered", "I don't understand", "Question not asked or not answered"],
+    "strong_agreement": ["I strongly agree", "Definitely yes", "Absolutely necessary"],
+    "agreement": ["I agree", "Probably yes", "Rather important", "Yes", "Checked", "I plan to further explore my genomic data beyond the course", "More positive", "I want to participate in the study", "Option 1: I would like to analyze my own genome", "I wish to continue with the questionnaire"],
     "neutral": ["Neutral", "I want to receive my complete data, but I do not think I will look into it", "Only receive"],
-    "disagreement": ["I disagree", "Probably no"],
-    "strong_disagreement": ["I strongly disagree", "Definitely no", "No", "More negative"]
+    "disagreement": ["I disagree", "Probably no", "No", "More critical"],
+    "strong_disagreement": ["I strongly disagree", "Definitely no"]
   },
 
   "differentConfigsSavedForLater": {
