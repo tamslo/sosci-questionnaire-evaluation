@@ -48,6 +48,10 @@ getMean <- function(responsesList) {
   return(round(mean(responsesList), digits = 1))
 }
 
+getFormattedAverage <- function(response_values) {
+  return(round(mean(response_values[which(!is.na(response_values))]), digits = 2))
+}
+
 getStatistic <- function(values, statisticFunction, responses) {
   return(normalizeValue(statisticFunction(values), responses))
 }

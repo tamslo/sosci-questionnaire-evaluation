@@ -75,6 +75,11 @@ runIfNotPresent <- function(runFunction, outputPath, runParameters = NULL, force
     }
   }
 }
+
+getCleanOption <- function(optionMeaning) {
+  source("modules/view/plotting/label.R", local = TRUE)
+  return(str_replace(replaceLabel(optionMeaning), "\n", " "))
+}
 ```
 
 ```{r view-helpers, include=FALSE}
@@ -851,12 +856,16 @@ getEvolutionStats <- function() {
             }
           }
           valueStrings <- c()
+          averageValues <- c()
           for (questionnaire in unique(population)) {
             questionnaireResponses <- value[which(population == questionnaire)]
+            numericResponses <- unlist(lapply(lapply(lapply(questionnaireResponses, getCleanOption), getValueGroup), getGroupValue))
+            averageValues <- c(averageValues, getFormattedAverage(numericResponses))
             valueString <- paste0(questionnaire, ": ", paste(questionnaireResponses, collapse = ", "))
             valueStrings <- c(valueStrings, valueString)
           }
           values <- paste(valueStrings, collapse = "\n")
+          averages <- paste(averageValues, collapse = ", ")
           valueMatrix <- data.frame(population, value)
           stats <- getStatistics(valueMatrix)
           firstCleanQuestionnaire <- comparisons[[comparisonName]][1]
@@ -868,7 +877,8 @@ getEvolutionStats <- function() {
           }
           firstQuestionId <- plotParameters[[questionName]][["question.list"]][[firstQuestionnaire]]
           secondQuestionId <- plotParameters[[questionName]][["question.list"]][[secondQuestionnaire]]
-          comparisonStatistics[[paste(questionId, comparisonName)]] <- c(title, comparisonName, firstQuestionId, secondQuestionId, stats, values)
+          comparisonStatistics[[paste(questionId, comparisonName)]] <- c(title, comparisonName, firstQuestionId, secondQuestionId,
+                                                                         stats, values, averages)
           pValue <- formatNumericValue(as.double(stats[2]))
           if (pValue <= 0.05) {
             output_print(paste("[INFO] Significant change (unpaired):", uni, year, questionId, comparisonName))
@@ -963,7 +973,7 @@ getEvolutionStats <- function() {
         createPdf(renderStackedBarplot, list("responses" = responses, "stats.strings" = statsStrings), pdfPath)
       }
       comparisonStatistics <- as.data.frame(do.call(rbind, comparisonStatistics))
-      colnames(comparisonStatistics) <- c("question.text", "comparison", "first.question.id", "second.question.id", statisticColumnNames, "values")
+      colnames(comparisonStatistics) <- c("question.text", "comparison", "first.question.id", "second.question.id", statisticColumnNames, "values","averages")
       write.csv(comparisonStatistics, parameters[["output.path"]], row.names = FALSE)
       combinePlots(plotPaths, file.path(outputDirectory, parameters[["output.name"]]))
       return(comparisonStatistics)
@@ -1254,7 +1264,7 @@ getEvolutionStats <- function() {
   effectSize <- c()
   effectSizeInterpretation <- c()
   values <- c()
-  avgDiff <- c()
+  averageValues <- c()
   alternativePValue <- c()
   alternativeTestMethod <- c()
   alternativeEffectSize <- c()
@@ -1276,6 +1286,7 @@ getEvolutionStats <- function() {
     isPaired <- c(isPaired, rep(paired, nrow(stats)))
     isBinary <- c(isBinary, rep(binary, nrow(stats)))
     values <- c(values, stats[["values"]])
+    averageValues <- c(averageValues, stats[["averages"]])
     if (paired) {
       questionTitle <- c(questionTitle, stats[["titles"]])
       comparison <- c(comparison, stats[["comparisons"]])
@@ -1289,7 +1300,6 @@ getEvolutionStats <- function() {
       alternativeTestMethod <- c(alternativeTestMethod, stats[["other_binary_test_methods"]])
       alternativeEffectSize <- c(alternativeEffectSize, stats[["other_binary_effect_values"]])
       alternativeEffectSizeInterpretation <- c(alternativeEffectSizeInterpretation, stats[["other_binary_effect_interpretation_values"]])
-      avgDiff <- c(avgDiff, stats[["average_differences"]])
     } else {
       questionTitle <- c(questionTitle, stats[["question.text"]])
       comparison <- c(comparison, stats[["comparison"]])
@@ -1304,10 +1314,9 @@ getEvolutionStats <- function() {
       alternativeEffectSize <- c(alternativeEffectSize, rep("–", nrow(stats)))
       alternativeEffectSizeInterpretation <- c(alternativeEffectSizeInterpretation, rep("–", nrow(stats)))
       values <- str_replace(values, "\n", "; ")
-      avgDiff <- c(avgDiff, rep("–", nrow(stats)))
     }
   }
-  evolution_stats <- data.frame(questionTitle, uni, year, comparison, firstQuestionId, secondQuestionId, isPaired, isBinary, pValue, testMethod, effectSize, effectSizeInterpretation, values, avgDiff, alternativePValue, alternativeTestMethod, alternativeEffectSize, alternativeEffectSizeInterpretation)
+  evolution_stats <- data.frame(questionTitle, uni, year, comparison, firstQuestionId, secondQuestionId, isPaired, isBinary, pValue, testMethod, effectSize, effectSizeInterpretation, values, averageValues, alternativePValue, alternativeTestMethod, alternativeEffectSize, alternativeEffectSizeInterpretation)
   for (rowIndex in 1:nrow(evolution_stats)) {
     evolution_stats$comparison[rowIndex] <- getCleanQuestionnaireNames(evolution_stats$comparison[rowIndex])
     # CAUTION: uni names and underscores will be removed from values (but should not be present there anyways)
@@ -1379,9 +1388,8 @@ printApproximateSurveyPeriods()
 
 ```{r aggregated-data, include=FALSE}
 getAggregatedData <- function() {
-  source("modules/data/questions.R")
-  source("modules/view/plotting/label.R")
-  source("modules/statistics/utils.R")
+  source("modules/data/questions.R", local = TRUE)
+  source("modules/statistics/utils.R", local = TRUE)
 
   aggregatedData <- list()
   addListData <- function(list, key, value) {
@@ -1394,9 +1402,6 @@ getAggregatedData <- function() {
   }
   THIS_OPTION_DATA <- COMPLETE_OPTIONS
   CLEAN <- c()
-  getCleanOption <- function(optionMeaning) {
-    return(str_replace(replaceLabel(optionMeaning), "\n", " "))
-  }
   for (optionIndex in 1:nrow(THIS_OPTION_DATA)) {
     optionMeaning <- THIS_OPTION_DATA[optionIndex, "MEANING"]
     cleanOption <- getCleanOption(optionMeaning)
@@ -1430,7 +1435,7 @@ getAggregatedData <- function() {
             questionnaire <- "Q4'"
           }
           # Add one column with readable result string and one with JSON
-          QUESTION_NOT_ASKED <- "Question not asked"
+          QUESTION_NOT_ASKED <- "Question not asked or not answered"
           currentResponses <- list()
           for (response in singleQuestionnaireResults[[question$id]]) {
             cleanResponse <- THIS_OPTION_DATA[which(
@@ -1485,7 +1490,7 @@ EVOLUTION_SUPPLEMENT_THRESHOLD <- 0.1
 # (responses from McNemar implicitly included via other inclusion criteria)
 EVOLUTION_SUPPLEMENT_EFFECT_MATCH <- "large"
 
-getEvolutionTableData <- function() {
+getEvolutionTableData <- function(option = 1) {
   filterEvolutionTableRows <- function(data) {
     includedData <- data[which(
       # Exclude redundant Q1-Q3 results; also included for Q1-Q4:
@@ -1507,9 +1512,10 @@ getEvolutionTableData <- function() {
     # (1) Only for current questionnaire (uni and year): 84 (w/ effect size 197)
     # (2) Adding also other unis and year: 96 (w/ effect size 214)
     # (3) Adding (1) only for first HPI year and all last year responses: 207 (w/ effect size 267)
+    # (4) Only return data of last two years
     extendedRelevantData <- NULL
     addAdditionalStrategy <- 2
-    if (addAdditionalStrategy == 1) {
+    if (option == 1) {
       for (uni in unique(relevantData$uni)) {
         uni_data <- relevantData[which(relevantData$uni == uni),]
         for (year in unique(uni_data$year)) {
@@ -1522,17 +1528,19 @@ getEvolutionTableData <- function() {
           }
         }
       }
-    } else if (addAdditionalStrategy == 2) {
+    } else if (option == 2) {
       for (question in unique(relevantData$questionTitle)) {
         complete_data <- includedData[which(includedData$questionTitle == question),]
         extendedRelevantData <- rbind(extendedRelevantData, complete_data)
       }
-    } else if (addAdditionalStrategy == 3) {
+    } else if (option == 3) {
       extendedRelevantData <- rbind(
         relevantData[which(relevantData$year == HPI_FIRST_YEAR),],
         includedData[which(includedData$year == HPI_SECOND_YEAR | includedData$year == TUM_COMPLETE_YEAR),])
+    } else if (option == 4) {
+      extendedRelevantData <- includedData[which(includedData$year == HPI_SECOND_YEAR | includedData$year == TUM_COMPLETE_YEAR),]
     } else {
-      stop(paste0("Invalid addAdditionalStrategy: ", addAdditionalStrategy))
+      stop(paste0("Invalid option: ", option))
     }
     return(extendedRelevantData)
   }
@@ -1574,7 +1582,7 @@ printChangeCounts <- function(alpha = 0.05) {
   print(changes)
 } 
 
-EVOLUTION_TABLE_DATA <- getEvolutionTableData()
+EVOLUTION_TABLE_DATA <- getEvolutionTableData(option = 3)
 printChangeCounts(alpha = 0.05)
 printChangeCounts(alpha = 0.1)
 ```
@@ -1637,7 +1645,7 @@ WILCOXON_MCNEMAR_DIFFERENCES <- getWilcoxonMcNemarDifferences()
 
 ```{r review-comment-open-ended-answers, include=FALSE}
 open_ended_questions <- COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$type == "OPEN"),]
-# Why no open in short-version?? (Maybe filtered in combining step?)
+# Why no open in short-version?? (Maybe filtered in combining step?); yes: "Q302_01", "Q303_01", "Q407_01", "QX20_01", "Q416_01"
 # TODO get question answers (and filter out empty and "no" answers)
 # TODO review open question answers, whether anything is interesting
 # TODO include interesting answers in text or explain why not included (text and review response)
