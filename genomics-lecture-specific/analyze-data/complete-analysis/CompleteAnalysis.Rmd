@@ -14,6 +14,7 @@ Afterwards, different analyzes are conducted and results produced. Intermediate 
 ```{r helpers, include=FALSE}
 library(tidyverse)
 library(rjson)
+library(stringr)
 
 getCompleteDataPath <- function() {
   source("modules/dataPath.R", local = TRUE)
@@ -1480,6 +1481,9 @@ The following table shows differences with _p_ <= 0.1; only paired results from 
 
 ```{r evolution-table, echo=FALSE, results='asis', include=TRUE}
 EVOLUTION_SUPPLEMENT_THRESHOLD <- 0.1
+# Also include results with large and medium to large effects
+# (responses from McNemar implicitly included via other inclusion criteria)
+EVOLUTION_SUPPLEMENT_EFFECT_MATCH <- "large"
 
 getEvolutionTableData <- function() {
   filterEvolutionTableRows <- function(data) {
@@ -1491,16 +1495,21 @@ getEvolutionTableData <- function() {
         # Exclude non-summarized HPI responses from first year (not done in other years as no Likert scales):
         (data$year != HPI_FIRST_YEAR | data$year == HPI_FIRST_YEAR & data$isBinary)
       ),]
-    relevantData <- includedData[which(
-      includedData$pValue != "–" &
-        includedData$pValue <= EVOLUTION_SUPPLEMENT_THRESHOLD
-      ),]
+    includeByEffectSize <- FALSE
+    relevantIndices <- which(includedData$pValue != "–" & includedData$pValue <= EVOLUTION_SUPPLEMENT_THRESHOLD)
+    if (includeByEffectSize) {
+       additionalRelevantIndices <- which(str_detect(includedData$effectSizeInterpretation, fixed(EVOLUTION_SUPPLEMENT_EFFECT_MATCH)))
+       relevantIndices <- unique(c(relevantIndices, additionalRelevantIndices))
+    }
+    relevantData <- includedData[relevantIndices,]
+
     # For relevant data, also add other time points for comparison (independent relevant or not)
-    # Only for current questionnaire (uni and year): 84
-    # Adding also other unis and year: 96
+    # (1) Only for current questionnaire (uni and year): 84 (w/ effect size 197)
+    # (2) Adding also other unis and year: 96 (w/ effect size 214)
+    # (3) Adding (1) only for first HPI year and all last year responses: 207 (w/ effect size 267)
     extendedRelevantData <- NULL
-    onlyPerQuestionnaire <- FALSE
-    if (onlyPerQuestionnaire) {
+    addAdditionalStrategy <- 2
+    if (addAdditionalStrategy == 1) {
       for (uni in unique(relevantData$uni)) {
         uni_data <- relevantData[which(relevantData$uni == uni),]
         for (year in unique(uni_data$year)) {
@@ -1513,11 +1522,17 @@ getEvolutionTableData <- function() {
           }
         }
       }
-    } else {
+    } else if (addAdditionalStrategy == 2) {
       for (question in unique(relevantData$questionTitle)) {
         complete_data <- includedData[which(includedData$questionTitle == question),]
         extendedRelevantData <- rbind(extendedRelevantData, complete_data)
       }
+    } else if (addAdditionalStrategy == 3) {
+      extendedRelevantData <- rbind(
+        relevantData[which(relevantData$year == HPI_FIRST_YEAR),],
+        includedData[which(includedData$year == HPI_SECOND_YEAR | includedData$year == TUM_COMPLETE_YEAR),])
+    } else {
+      stop(paste0("Invalid addAdditionalStrategy: ", addAdditionalStrategy))
     }
     return(extendedRelevantData)
   }
