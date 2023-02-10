@@ -1542,6 +1542,17 @@ getEvolutionTableData <- function(option = 1) {
     } else {
       stop(paste0("Invalid option: ", option))
     }
+    getAverageDifferences <- function(data) {
+      averageText <- data$averageValues
+      getAverageValue <- function(averageText, index) {
+        averageValues <- unlist(str_split(averageText, ", "))
+        return(as.numeric(averageValues[index]))
+      }
+      firstAverages <- unlist(lapply(averageText, function(averageText) { getAverageValue(averageText, 1) }))
+      secondAverages <- unlist(lapply(averageText, function(averageText) { getAverageValue(averageText, 2) }))
+      return(secondAverages - firstAverages)
+    }
+    extendedRelevantData$averageDifference <- getAverageDifferences(extendedRelevantData)
     return(extendedRelevantData)
   }
 
@@ -1559,17 +1570,35 @@ getEvolutionTableData <- function(option = 1) {
                                     alternativeTestMethod, isBinary, isPaired)))
   }
 
+  cleanEvolutionTableData <- function(data) {
+    setNa <- function(data, colName, value) {
+      indices <- which(data[[colName]] == value)
+      data[indices, colName] <- NA
+      return(data)
+    }
+    cleanData <- setNa(data, "pValue", Inf)
+    cleanData <- setNa(cleanData, "effectSize", -Inf)
+    cleanData <- setNa(cleanData, "effectSize", "all pairwise differences equal zero")
+    cleanData <- setNa(cleanData, "effectSizeInterpretation", "undefined")
+    cleanData <- setNa(cleanData, "pValue", "–")
+    cleanData <- setNa(cleanData, "testMethod", "–")
+    cleanData <- setNa(cleanData, "effectSize", "–")
+    cleanData <- setNa(cleanData, "effectSizeInterpretation", "–")
+    return(cleanData)
+  }
+
   tableData <- filterEvolutionTableRows(EVOLUTION_STATS)
   tableData <- sortEvolutionTable(tableData)
   tableData <- filterEvolutionTableColumns(tableData)
+  tableData <- cleanEvolutionTableData(tableData)
   write.csv(tableData, file.path(COMPLETE_RESULTS_DIRECTORY, "evolution_table.csv"), row.names = FALSE)
   return(tableData)
 }
 
-printChangeCounts <- function(alpha = 0.05) {
+printChangeCounts <- function(tableData, alpha = 0.05) {
   changes <- list()
-  for (rowIndex in 1:nrow(EVOLUTION_TABLE_DATA)) {
-    currentData <- EVOLUTION_TABLE_DATA[rowIndex,]
+  for (rowIndex in 1:nrow(tableData)) {
+    currentData <- tableData[rowIndex,]
     if (!is.na(currentData$pValue) && currentData$pValue < alpha) {
       change <- str_remove_all(currentData$comparison, "_HPI")
       if (change %in% names(changes)) {
@@ -1583,8 +1612,16 @@ printChangeCounts <- function(alpha = 0.05) {
 } 
 
 EVOLUTION_TABLE_DATA <- getEvolutionTableData(option = 3)
-printChangeCounts(alpha = 0.05)
-printChangeCounts(alpha = 0.1)
+printChangeCounts(EVOLUTION_TABLE_DATA, alpha = 0.05)
+printChangeCounts(EVOLUTION_TABLE_DATA, alpha = 0.1)
+
+# How to imoport to Excel:
+# - Select "Delimited"
+# - Select UTF-8 as file origin
+# - "Next"
+# - Select comma as separator and " as text qualifier
+# - "Next"
+# - In "Advanced..." set decimal separator to .
 ```
 
 ```{r hpi-2020-q4-english, include=TRUE}
