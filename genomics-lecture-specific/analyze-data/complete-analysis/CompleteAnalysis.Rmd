@@ -48,6 +48,20 @@ HPI_FIRST_YEAR <- "SoSe 2020"
 HPI_SECOND_YEAR <- "SoSe 2021"
 TUM_COMPLETE_YEAR <- "WiSe 2020/21"
 
+# Definition of different questionnaire locations and versions
+INITIAL_VERSION_DIRECTORIES <- c(
+  "data/AYPG/HPI_Q1-Q3", # long version
+  "data/AYPG/HPI_Q4", # old short version
+  "data/TUM_Retrospective", # old short version
+  "data/TUM_Q1-Q4/TUM_Q1", # old short version
+  "data/TUM_Q1-Q4/TUM_Q2", # old short version
+  "data/TUM_Q1-Q4/TUM_Q3" # old short version
+)
+CONFLICTING_VERSION_DIRECTORIES <- c(
+  "data/TUM_Q1-Q4/TUM_Q4", # new short version
+  "data/UYG" # new short version
+)
+
 getCleanQuestionnaireNames <- function(questionnaireText) {
   if (!str_detect(questionnaireText, fixed("_"))) {
      return(questionnaireText)
@@ -114,30 +128,16 @@ output_print <- function(text) {
 combineCompleteResultData <- function() {
   source("assets/combineResultData.R", local = TRUE)
 
-  # Definition of different questionnaire locations and versions
-  initial_version_directories <- c(
-    "data/AYPG/HPI_Q1-Q3", # long version
-    "data/AYPG/HPI_Q4", # old short version
-    "data/TUM_Retrospective", # old short version
-    "data/TUM_Q1-Q4/TUM_Q1", # old short version
-    "data/TUM_Q1-Q4/TUM_Q2", # old short version
-    "data/TUM_Q1-Q4/TUM_Q3" # old short version
-  )
-  conflicting_version_directories <- c(
-    "data/TUM_Q1-Q4/TUM_Q4", # new short version
-    "data/UYG" # new short version
-  )
-
   # Definition of output directories
   initial_versions_directory = file.path(COMPLETE_DATA_DIRECTORY, "InititalVersions")
   conflicting_versions_directory = file.path(COMPLETE_DATA_DIRECTORY, "NewVersions")
 
   # First combine compatible questionnaires (to be better able to compare afterwards)
   if (!dir.exists(initial_versions_directory)) {
-    combineResultData(initial_version_directories, initial_versions_directory, outputPostfix = "_old_versions_combined")
+    combineResultData(INITIAL_VERSION_DIRECTORIES, initial_versions_directory, outputPostfix = "_old_versions_combined")
   }
   if (!dir.exists(conflicting_versions_directory)) {
-    combineResultData(conflicting_version_directories, conflicting_versions_directory, outputPostfix = "_new_versions_combined")
+    combineResultData(CONFLICTING_VERSION_DIRECTORIES, conflicting_versions_directory, outputPostfix = "_new_versions_combined")
   }
   
   # Combine all data (see config in COMPLETE_DATA_DIRECTORY for merge settings)
@@ -1699,9 +1699,54 @@ WILCOXON_MCNEMAR_DIFFERENCES <- getWilcoxonMcNemarDifferences()
 ```
 
 ```{r review-comment-open-ended-answers, include=FALSE}
-open_ended_questions <- COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$type == "OPEN"),]
-# Why no open in short-version?? (Maybe filtered in combining step?); yes: "Q302_01", "Q303_01", "Q407_01", "QX20_01", "Q416_01"
-# TODO get question answers (and filter out empty and "no" answers)
-# TODO review open question answers, whether anything is interesting
-# TODO include interesting answers in text or explain why not included (text and review response)
+printOpenEndedData <- function() {
+  source("assets/combineResultData.R", local = TRUE)
+  getQuestionResponses <- function(openQuestions, resultData) {
+    questionResponses <- list()
+    for (questionIndex in 1:nrow(openQuestions)) {
+      question <- openQuestions[questionIndex,]
+      responses <- list()
+      responseIndex <- 1
+      for (resultIndex in 1:nrow(resultData)) {
+        response <- resultData[resultIndex,]
+        text <- response[[question$id]]
+        if (!is.null(text) && text != "") {
+          responses[[responseIndex]] <- list("questionnnaire" = response$QUESTNNR, "text" = text)
+          responseIndex <- responseIndex + 1
+        }
+      } 
+      questionResponses[[question$id]] <- list("question" = question$text, "responses" = responses)
+    }
+    return(questionResponses)
+  }
+  questionResponses <- getQuestionResponses(COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$type == "OPEN"),], COMPLETE_RESULTS)
+  combination_config <- getCombinationConfig(COMPLETE_DATA_DIRECTORY)
+  missing_question_ids <- combination_config[["removeQuestionIds"]]
+  for (data_directory in c(INITIAL_VERSION_DIRECTORIES, CONFLICTING_VERSION_DIRECTORIES)) {
+    question_data <- getQuestions(dataPath = data_directory)
+    result_data <- getResultData(dataPath = data_directory)
+    open_questions <- question_data[which(question_data$id %in% missing_question_ids),]
+    if (nrow(open_questions) > 0) {
+      moreResponses <- getQuestionResponses(open_questions, result_data)
+      questionResponses <- append(questionResponses, moreResponses)
+    }
+  }
+  for (questionId in names(questionResponses)) {
+    questionData <- questionResponses[[questionId]]
+    questionText <- questionData[["question"]]
+    print("")
+    print(questionText)
+    browser()
+    responses <- questionData[["responses"]]
+    for (responseIndex in names(responses)) {
+      print(responseIndex)
+      response <- responses[[responseIndex]]
+      print(paste0("* [", response[["questionnaire"]], "] ", response[["text"]]))
+    }
+  }
+  # TODO get question answers (and filter out empty and "no" answers)
+  # TODO review open question answers, whether anything is interesting
+  # TODO include interesting answers in text or explain why not included (text and review response)
+}
+printOpenEndedData()
 ```

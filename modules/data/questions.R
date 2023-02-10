@@ -14,15 +14,15 @@ getQuestionTitle <- function(question) {
   return(questionTitle)
 }
 
-getQuestions <- function() {
+getQuestions <- function(dataPath = NULL) {
   getOption <- function(questionData, questionId) {
     label <- questionData[questionData$VAR == questionId,]$LABEL
     option <- unlist(regmatches(label, regexpr(": ", label), invert = TRUE))[2]
     return(option)
   }
   
-  questionData <- getQuestionData()
-  resultData <- getResultData()
+  questionData <- getQuestionData(dataPath = dataPath)
+  resultData <- getResultData(dataPath = dataPath)
   questionIds <- getQuestionIds(resultData)
   
   id <- questionIds
