@@ -94,6 +94,30 @@ getCleanOption <- function(optionMeaning) {
   source("modules/view/plotting/label.R", local = TRUE)
   return(str_replace(replaceLabel(optionMeaning), "\n", " "))
 }
+
+getUniFromQuestionnaire <- function(questionnaire) {
+  if (str_detect(questionnaire, fixed(TUM_NAME))) {
+    return(TUM_NAME)
+  } else {
+    return(HPI_NAME)
+  }
+}
+
+getCourseYear <- function(questionnaire, options, row) {
+  if (questionnaire == "TUM_Retrospective") {
+    if (is.na(row$T201)) {
+      return(NA)
+    }
+    return(options[which(options$VAR == "T201" & options$RESPONSE == row$T201),]$MEANING)
+  } else if (!str_detect(questionnaire, fixed("_")) | str_detect(questionnaire, fixed(HPI_NAME))) {
+    return(paste("SoSe", substr(row$STARTED, 1, 4)))
+  } else if (str_detect(questionnaire, fixed(TUM_NAME))) {
+    return(TUM_COMPLETE_YEAR)
+  } else {
+    print(paste("WARNING: Unhandled COURSE_YEAR case for", questionnaire))
+    return("NOT HANDLED")
+  }
+}
 ```
 
 ```{r view-helpers, include=FALSE}
@@ -154,27 +178,11 @@ combineCompleteResultData <- function() {
     row <- results[rowIndex,]
     questionnaire <- row$QUESTNNR
     # Get UNI
-    if (str_detect(questionnaire, fixed(TUM_NAME))) {
-      UNI <- c(UNI, TUM_NAME)
-    } else {
-      UNI <- c(UNI, HPI_NAME)
-    }
+    UNI <- c(UNI, getUniFromQuestionnaire(questionnaire))
     # Get CLEAN_QUESTNNR
     CLEAN_QUESTNNR <- c(CLEAN_QUESTNNR, getCleanQuestionnaireNames(questionnaire))
     # Get COURSE_YEAR
-    if (questionnaire == "TUM_Retrospective") {
-      if (is.na(row$T201)) {
-        COURSE_YEAR <- c(COURSE_YEAR, NA)
-      }
-      COURSE_YEAR <- c(COURSE_YEAR, options[which(options$VAR == "T201" & options$RESPONSE == row$T201),]$MEANING)
-    } else if (!str_detect(questionnaire, fixed("_")) | str_detect(questionnaire, fixed(HPI_NAME))) {
-      COURSE_YEAR <- c(COURSE_YEAR, paste("SoSe", substr(row$STARTED, 1, 4)))
-    } else if (str_detect(questionnaire, fixed(TUM_NAME))) {
-      COURSE_YEAR <- c(COURSE_YEAR, TUM_COMPLETE_YEAR)
-    } else {
-      print(paste("WARNING: Unhandled COURSE_YEAR case for", questionnaire))
-      COURSE_YEAR <- c(COURSE_YEAR, "NOT HANDLED")
-    }
+    COURSE_YEAR <- c(COURSE_YEAR, getCourseYear(questionnaire, options, row))
   }
   results$UNI <- UNI
   results$COURSE_YEAR <- COURSE_YEAR
@@ -1699,9 +1707,9 @@ WILCOXON_MCNEMAR_DIFFERENCES <- getWilcoxonMcNemarDifferences()
 ```
 
 ```{r review-comment-open-ended-answers, include=FALSE}
-printOpenEndedData <- function() {
+getOpenEndedData <- function() {
   source("assets/combineResultData.R", local = TRUE)
-  getQuestionResponses <- function(openQuestions, resultData) {
+  getQuestionResponses <- function(openQuestions, resultData, optionData) {
     questionResponses <- list()
     for (questionIndex in 1:nrow(openQuestions)) {
       question <- openQuestions[questionIndex,]
@@ -1711,7 +1719,18 @@ printOpenEndedData <- function() {
         response <- resultData[resultIndex,]
         text <- response[[question$id]]
         if (!is.null(text) && text != "") {
-          responses[[responseIndex]] <- list("questionnnaire" = response$QUESTNNR, "text" = text)
+          if (question$id == "DU12_01") {
+            dependend_question <- "DU11"
+            dependend_response <- response[[dependend_question]]
+            dependend_text <- optionData$MEANING[which(
+              optionData$VAR == dependend_question & optionData$RESPONSE == dependend_response)]
+            text <- paste0("(Previous answer: ", dependend_text, ") ", text)
+          }
+          responses[[responseIndex]] <- list(
+            "questionnaire" = getCleanQuestionnaireNames(response$QUESTNNR),
+            "uni" = getUniFromQuestionnaire(response$QUESTNNR),
+            "course.year" = getCourseYear(response$QUESTNNR, optionData, response),
+            "text" = text)
           responseIndex <- responseIndex + 1
         }
       } 
@@ -1719,34 +1738,40 @@ printOpenEndedData <- function() {
     }
     return(questionResponses)
   }
-  questionResponses <- getQuestionResponses(COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$type == "OPEN"),], COMPLETE_RESULTS)
+  questionResponses <- getQuestionResponses(
+    COMPLETE_QUESTIONS[which(COMPLETE_QUESTIONS$type == "OPEN"),], COMPLETE_RESULTS, COMPLETE_OPTIONS)
   combination_config <- getCombinationConfig(COMPLETE_DATA_DIRECTORY)
   missing_question_ids <- combination_config[["removeQuestionIds"]]
   for (data_directory in c(INITIAL_VERSION_DIRECTORIES, CONFLICTING_VERSION_DIRECTORIES)) {
     question_data <- getQuestions(dataPath = data_directory)
     result_data <- getResultData(dataPath = data_directory)
-    open_questions <- question_data[which(question_data$id %in% missing_question_ids),]
+    option_data <- getOptionData(dataPath = data_directory)
+    open_questions <- question_data[which(question_data$id %in% missing_question_ids & question_data$type == "OPEN"),]
     if (nrow(open_questions) > 0) {
-      moreResponses <- getQuestionResponses(open_questions, result_data)
+      moreResponses <- getQuestionResponses(open_questions, result_data, option_data)
       questionResponses <- append(questionResponses, moreResponses)
     }
   }
+  question <- c()
+  uni <- c()
+  questionnaire <- c()
+  course.year <- c()
+  response.text <- c()
   for (questionId in names(questionResponses)) {
     questionData <- questionResponses[[questionId]]
-    questionText <- questionData[["question"]]
-    print("")
-    print(questionText)
-    browser()
     responses <- questionData[["responses"]]
-    for (responseIndex in names(responses)) {
-      print(responseIndex)
-      response <- responses[[responseIndex]]
-      print(paste0("* [", response[["questionnaire"]], "] ", response[["text"]]))
+    for (response in responses) {
+      question <- c(question, questionData[["question"]])
+      uni <- c(uni, response[["uni"]])
+      questionnaire <- c(questionnaire, response[["questionnaire"]])
+      course.year <- c(course.year, response[["course.year"]])
+      response.text <- c(response.text, response[["text"]])
     }
   }
-  # TODO get question answers (and filter out empty and "no" answers)
-  # TODO review open question answers, whether anything is interesting
-  # TODO include interesting answers in text or explain why not included (text and review response)
+  openQuestions <- data.frame(question, uni, questionnaire, course.year, response.text)
+  write.csv(openQuestions, file.path(COMPLETE_RESULTS_DIRECTORY, "open_questions.csv"), row.names = FALSE)
+  return(openQuestions)
 }
-printOpenEndedData()
+OPEN_QUESTIONS <- getOpenEndedData()
+View(OPEN_QUESTIONS)
 ```
